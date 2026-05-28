@@ -13,7 +13,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -23,15 +23,18 @@ export default function Login() {
     }
 
     setLoading(true);
-    setTimeout(() => {
-      const success = login(userId.trim(), password);
+    try {
+      const success = await login(userId.trim(), password);
       if (success) {
         navigate('/', { replace: true });
       } else {
-        setError('Invalid User ID or Password');
+        setError('Invalid credentials');
       }
+    } catch (err: any) {
+      setError(err.message || 'Invalid User ID or Password');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   const containerVariants = {
@@ -101,7 +104,7 @@ export default function Login() {
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <motion.div variants={itemVariants}>
-              <label className="block text-sm font-semibold text-foreground/80 mb-2">User ID</label>
+              <label className="block text-sm font-semibold text-foreground/80 mb-2">Email / User ID</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors">
                   <User className="w-5 h-5" />
@@ -111,7 +114,7 @@ export default function Login() {
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 rounded-xl border border-input/50 bg-white/50 text-foreground text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-white transition-all duration-300"
-                  placeholder="Enter your user ID"
+                  placeholder="Enter email or 'superadmin'/'admin'"
                 />
               </div>
             </motion.div>
@@ -170,9 +173,12 @@ export default function Login() {
             </motion.button>
           </form>
 
-          <motion.div variants={itemVariants} className="mt-8 pt-6 border-t border-border/50">
+          <motion.div variants={itemVariants} className="mt-8 pt-6 border-t border-border/50 space-y-2">
             <p className="text-xs text-muted-foreground text-center font-medium">
-              Demo: <span className="text-primary font-bold">admin</span> / <span className="text-primary font-bold">123456</span>
+              Super Admin: <span className="text-primary font-bold">superadmin@photobill.com</span> / <span className="text-primary font-bold">123456</span>
+            </p>
+            <p className="text-xs text-muted-foreground text-center font-medium">
+              Admin / Billing Manager: <span className="text-primary font-bold">admin@photobill.com</span> / <span className="text-primary font-bold">123456</span>
             </p>
           </motion.div>
         </motion.div>

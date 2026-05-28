@@ -61,10 +61,12 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
               </div>
             </div>
             <div className="text-right">
-              <p className="font-bold text-lg text-card-foreground">{invoice.invoiceNumber}</p>
-              <p className="text-sm text-muted-foreground">{invoice.createdAt}</p>
+              <p className="font-black text-lg text-card-foreground uppercase tracking-wide">{invoice.invoiceNumber}</p>
+              <p className="text-xs font-medium text-muted-foreground mt-1">
+                {new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(invoice.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </p>
               <span className={cn(
-                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 uppercase tracking-wider',
+                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1.5 uppercase tracking-wider',
                 invoice.paymentStatus === 'completed' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
               )}>
                 {invoice.paymentStatus}
@@ -72,11 +74,17 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
             </div>
           </div>
 
-          <div className="bg-muted/50 rounded-lg p-5">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Bill To</p>
-            <p className="font-medium text-lg text-card-foreground">{invoice.customerName}</p>
-            {invoice.customerPhone && <p className="text-sm text-muted-foreground mt-1">{invoice.customerPhone}</p>}
-            {invoice.customerEmail && <p className="text-sm text-muted-foreground">{invoice.customerEmail}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 rounded-lg p-5">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Bill To</p>
+              <p className="font-medium text-lg text-card-foreground">{invoice.customerName}</p>
+              {invoice.customerPhone && <p className="text-sm text-muted-foreground mt-1">{invoice.customerPhone}</p>}
+              {invoice.customerEmail && <p className="text-sm text-muted-foreground">{invoice.customerEmail}</p>}
+            </div>
+            <div className="sm:text-right">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Billed By</p>
+              <p className="font-bold text-lg text-card-foreground">{invoice.createdBy || 'System'}</p>
+            </div>
           </div>
 
           {invoice.description && (

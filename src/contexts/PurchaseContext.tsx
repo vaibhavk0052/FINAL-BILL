@@ -33,7 +33,11 @@ const samplePurchases: Purchase[] = [
 export function PurchaseProvider({ children }: { children: ReactNode }) {
   const [purchases, setPurchases] = useState<Purchase[]>(() => {
     const saved = localStorage.getItem('billing_purchases');
-    return saved ? JSON.parse(saved) : samplePurchases;
+    if (saved) {
+      const parsed: Purchase[] = JSON.parse(saved);
+      return parsed.filter(p => p.id !== '1' && p.id !== '2');
+    }
+    return [];
   });
 
   useEffect(() => {

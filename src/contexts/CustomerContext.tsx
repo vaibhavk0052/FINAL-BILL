@@ -23,7 +23,11 @@ const sampleCustomers: Customer[] = [
 export function CustomerProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem('billing_customers');
-    return saved ? JSON.parse(saved) : sampleCustomers;
+    if (saved) {
+      const parsed: Customer[] = JSON.parse(saved);
+      return parsed.filter(c => c.id !== '1' && c.id !== '2' && c.id !== '3');
+    }
+    return [];
   });
 
   useEffect(() => {

@@ -1,39 +1,96 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { loginUser, logoutUser, UserProfile, isFirebaseConfigured, auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: { id: string; name: string } | null;
-  login: (userId: string, password: string) => boolean;
-  logout: () => void;
+  user: UserProfile | null;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const DEMO_USER = { id: 'admin', password: '123456', name: 'Administrator' };
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<{ id: string; name: string } | null>(() => {
+  const [user, setUser] = useState<UserProfile | null>(() => {
     const stored = sessionStorage.getItem('billing_user');
     return stored ? JSON.parse(stored) : null;
   });
+  const [loading, setLoading] = useState(true);
 
-  const login = useCallback((userId: string, password: string) => {
-    if (userId === DEMO_USER.id && password === DEMO_USER.password) {
-      const u = { id: DEMO_USER.id, name: DEMO_USER.name };
-      setUser(u);
-      sessionStorage.setItem('billing_user', JSON.stringify(u));
-      return true;
+  // Sync auth state if using real Firebase
+  useEffect(() => {
+    if (isFirebaseConfigured && auth) {
+      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (firebaseUser) {
+          try {
+            const stored = sessionStorage.getItem('billing_user');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed.uid === firebaseUser.uid) {
+                setUser(parsed);
+                setLoading(false);
+                return;
+              }
+            }
+            // If not found in storage, create a default profile
+            const defaultProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              name: firebaseUser.displayName || 'User',
+              email: firebaseUser.email || '',
+              role: (firebaseUser.email?.includes('superadmin') ? 'superadmin' : 'admin') as any,
+              createdAt: new Date().toISOString()
+            };
+            setUser(defaultProfile);
+            sessionStorage.setItem('billing_user', JSON.stringify(defaultProfile));
+          } catch (err) {
+            console.error("Error restoring user profile:", err);
+          }
+        } else {
+          // Firebase says no user logged in — clear session
+          setUser(null);
+          sessionStorage.removeItem('billing_user');
+        }
+        setLoading(false);
+      });
+      return unsubscribe;
+    } else {
+      setLoading(false);
     }
-    return false;
+  }, []); // Run once on mount only
+
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      const profile = await loginUser(email, password);
+      setUser(profile);
+      sessionStorage.setItem('billing_user', JSON.stringify(profile));
+      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const logout = useCallback(() => {
-    setUser(null);
-    sessionStorage.removeItem('billing_user');
+  const logout = useCallback(async () => {
+    try {
+      setLoading(true);
+      await logoutUser();
+      setUser(null);
+      sessionStorage.removeItem('billing_user');
+      // Force redirect to login — ensures no panel flickers after logout
+      window.location.replace('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+      setLoading(false);
+    }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -24,7 +24,11 @@ const sampleItems: Item[] = [
 export function ItemProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('billing_items');
-    return saved ? JSON.parse(saved) : sampleItems;
+    if (saved) {
+      const parsed: Item[] = JSON.parse(saved);
+      return parsed.filter(i => i.id !== '1' && i.id !== '2' && i.id !== '3');
+    }
+    return [];
   });
 
   useEffect(() => {

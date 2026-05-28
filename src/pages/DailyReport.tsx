@@ -739,7 +739,7 @@ export default function DailyReport() {
                   "p-6 rounded-2xl border shadow-card relative overflow-hidden group transition-all",
                   billTab === 'private' ? 'bg-red-500/5 border-red-500/20' : 'bg-card border-border/50'
                 )}>
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-success">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-success pointer-events-none">
                     <TrendingUp className="w-12 h-12" />
                   </div>
                   <p className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1">
@@ -757,14 +757,15 @@ export default function DailyReport() {
                 </div>
 
                 <div className="bg-card p-6 rounded-2xl border border-border/50 shadow-card relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-destructive">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-destructive pointer-events-none">
                     <TrendingDown className="w-12 h-12" />
                   </div>
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">Total Costing</p>
                     <button 
+                      type="button"
                       onClick={() => setShowForm(true)}
-                      className="text-[10px] font-black bg-destructive/10 text-destructive px-2 py-0.5 rounded hover:bg-destructive/20 transition-colors"
+                      className="text-[10px] font-black bg-destructive/10 text-destructive px-2 py-0.5 rounded hover:bg-destructive/20 transition-colors relative z-10"
                     >
                       + ADD COST
                     </button>
@@ -788,7 +789,7 @@ export default function DailyReport() {
                       ? 'bg-primary shadow-lg shadow-primary/20 text-white'
                       : 'bg-destructive shadow-lg shadow-destructive/20 text-white'
                 )}>
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform pointer-events-none">
                     <Wallet className="w-12 h-12" />
                   </div>
                   <p className="text-xs font-black uppercase tracking-widest mb-1 opacity-80">Final Balance</p>
@@ -978,7 +979,7 @@ export default function DailyReport() {
 
       {/* MANUAL COSTING ENTRY MODAL */}
       {showForm && (
-        <div className="fixed inset-0 bg-background/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-background/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-card border border-border/30 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] rounded-3xl w-full max-w-sm p-8 animate-scale-in">
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-black text-xl uppercase tracking-tight">Add Daily Cost</h2>

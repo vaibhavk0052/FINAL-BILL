@@ -3,10 +3,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, History, FilePlus, FileText, CreditCard, Clock,
   BarChart3, ShoppingCart, ClipboardList, Users2, Package, Tags,
-  IndianRupee, UserPlus, Settings, UserCircle, LogOut, Zap, ChevronDown,
+  IndianRupee, UserPlus, Settings, UserCircle, LogOut, Zap, ChevronDown, Trash2, X
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+
 
 interface MenuItem {
   label: string;
@@ -82,7 +83,7 @@ const sectionColors: Record<string, {
   },
 };
 
-const menu: { section: string; items: MenuItem[] }[] = [
+const menu: { section: string; items: (MenuItem & { role?: string })[] }[] = [
   {
     section: 'Main',
     items: [
@@ -108,6 +109,7 @@ const menu: { section: string; items: MenuItem[] }[] = [
       { label: 'Create Bill', icon: FilePlus,      path: '/create-bill' },
       { label: 'All Bills',   icon: FileText,      path: '/all-bills' },
       { label: 'Daily report', icon: ClipboardList, path: '/daily-report' },
+      { label: 'Bill Trash',  icon: Trash2,        path: '/bill-trash', role: 'superadmin' },
     ],
   },
   {
@@ -125,19 +127,41 @@ const menu: { section: string; items: MenuItem[] }[] = [
   {
     section: 'System',
     items: [
-      { label: 'User Profile', icon: UserCircle, path: '/profile' },
+      { label: 'Add Employee', icon: UserPlus, path: '/add-employee', role: 'superadmin' },
     ],
   },
 ];
 
-export default function AppSidebar() {
+interface AppSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
   const location = useLocation();
   const navigate  = useNavigate();
   const { logout, user } = useAuth();
 
+  // Filter menu items dynamically according to current user's role
+  const filteredMenu = useMemo(() => {
+    return menu.map(group => {
+      const items = group.items.filter(item => {
+        if (item.role === 'superadmin' && user?.role !== 'superadmin') {
+          return false;
+        }
+        return true;
+      });
+      return { ...group, items };
+    }).filter(group => group.items.length > 0);
+  }, [user]);
+
   return (
     <aside
-      className="w-[258px] h-full flex flex-col shrink-0 no-print relative overflow-hidden"
+      className={cn(
+        "w-[258px] h-full flex flex-col shrink-0 no-print relative overflow-hidden transition-transform duration-300 ease-in-out",
+        "fixed inset-y-0 left-0 z-50 lg:static lg:translate-x-0 lg:flex",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}
       style={{
         background: 'linear-gradient(160deg, #fff5f8 0%, #ffffff 40%, #f0fdf4 100%)',
         borderRight: '1px solid hsl(330 20% 90%)',
@@ -170,39 +194,51 @@ export default function AppSidebar() {
 
       {/* ── Logo / Header ── */}
       <div
-        className="relative h-16 flex items-center gap-3 px-5 shrink-0"
+        className="relative h-16 flex items-center justify-between px-5 shrink-0"
         style={{ borderBottom: '1px solid hsl(330 20% 90%)' }}
       >
-        {/* Shimmer logo icon */}
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{
-            background: 'linear-gradient(135deg, hsl(330 80% 60%), hsl(270 70% 65%))',
-            boxShadow: '0 4px 10px hsl(330 80% 60% / 0.3)',
-          }}
-        >
-          <Zap className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <span
-            className="font-extrabold text-xl tracking-tight"
+        <div className="flex items-center gap-3">
+          {/* Shimmer logo icon */}
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
             style={{
-              background: 'linear-gradient(90deg, hsl(330 80% 50%), hsl(270 70% 55%), hsl(140 60% 40%))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+              background: 'linear-gradient(135deg, hsl(330 80% 60%), hsl(270 70% 65%))',
+              boxShadow: '0 4px 10px hsl(330 80% 60% / 0.3)',
             }}
           >
-            PhotoBill Pro
-          </span>
-          <p className="text-xs leading-none mt-0.5 text-slate-500">
-            Billing Manager
-          </p>
+            <Zap className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <span
+              className="font-extrabold text-xl tracking-tight"
+              style={{
+                background: 'linear-gradient(90deg, hsl(330 80% 50%), hsl(270 70% 55%), hsl(140 60% 40%))',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              PhotoBill Pro
+            </span>
+            <p className="text-xs leading-none mt-0.5 text-slate-500">
+              Billing Manager
+            </p>
+          </div>
         </div>
+
+        {/* Close trigger visible only on mobile overlay */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* ── Navigation ── */}
       <nav className="relative flex-1 overflow-hidden py-2 px-3 flex flex-col gap-1">
-        {menu.map((group, gi) => {
+        {filteredMenu.map((group, gi) => {
           const sc = sectionColors[group.section] ?? sectionColors['System'];
           return (
             <ul key={group.section} className="flex flex-col gap-1">
@@ -211,7 +247,12 @@ export default function AppSidebar() {
                 return (
                   <li key={item.label} style={{ animation: `slideIn 0.35s ease both ${(gi * 2 + ii) * 40}ms` }}>
                     <button
-                      onClick={() => item.path && navigate(item.path)}
+                      onClick={() => {
+                        if (item.path) {
+                          navigate(item.path);
+                          if (onClose) onClose();
+                        }
+                      }}
                       className={cn(
                         'w-full flex items-center gap-3 px-3 py-1.5 rounded-xl text-[15px] transition-all duration-200 group',
                         active
@@ -270,16 +311,16 @@ export default function AppSidebar() {
             {user?.name?.[0]?.toUpperCase() ?? 'A'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-slate-800 truncate">{user?.name}</p>
+            <p className="text-base font-semibold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
             <p
-              className="text-xs font-medium"
+              className="text-xs font-medium font-sans"
               style={{
                 background: 'linear-gradient(90deg, hsl(330 80% 50%), hsl(270 70% 55%))',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              Administrator
+              {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'admin' ? 'Billing Manager' : 'Staff'}
             </p>
           </div>
         </div>

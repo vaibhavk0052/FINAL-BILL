@@ -1,9 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { InvoiceProvider } from "@/contexts/InvoiceContext";
 import { PurchaseProvider } from "./contexts/PurchaseContext";
 import { ItemProvider } from "./contexts/ItemContext";
@@ -21,6 +21,8 @@ import PurchaseHistory from "./pages/PurchaseHistory";
 import ManageItems from "./pages/ManageItems";
 import CustomerList from "./pages/CustomerList";
 import AddExpenses from "./pages/AddExpenses";
+import AddEmployee from "./pages/AddEmployee";
+import BillTrash from "./pages/BillTrash";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +34,23 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
       <AppLayout>{children}</AppLayout>
     </ProtectedRoute>
   );
+}
+
+function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'superadmin') return <Navigate to="/" replace />;
+  
+  return <>{children}</>;
 }
 
 const App = () => (
@@ -58,6 +77,8 @@ const App = () => (
               <Route path="/items" element={<ProtectedLayout><ManageItems /></ProtectedLayout>} />
               <Route path="/customers" element={<ProtectedLayout><CustomerList /></ProtectedLayout>} />
               <Route path="/add-expenses" element={<ProtectedLayout><AddExpenses /></ProtectedLayout>} />
+              <Route path="/add-employee" element={<SuperAdminRoute><ProtectedLayout><AddEmployee /></ProtectedLayout></SuperAdminRoute>} />
+              <Route path="/bill-trash" element={<SuperAdminRoute><ProtectedLayout><BillTrash /></ProtectedLayout></SuperAdminRoute>} />
               
               <Route path="/reports" element={<ProtectedLayout><PlaceholderPage title="Payment Reports" /></ProtectedLayout>} />
               <Route path="/suppliers" element={<ProtectedLayout><PlaceholderPage title="Suppliers" /></ProtectedLayout>} />

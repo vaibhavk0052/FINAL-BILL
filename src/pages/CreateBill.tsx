@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useInvoices, type InvoiceItem, type Invoice, type PaymentEntry } from '@/contexts/InvoiceContext';
 import { useItems } from '@/contexts/ItemContext';
-import { Plus, Trash2, FileText, Globe, Lock } from 'lucide-react';
+import { Plus, Trash2, FileText, Globe, Lock, User, Phone, BadgeCheck } from 'lucide-react';
 import InvoicePreview from '@/components/InvoicePreview';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { getEmployees, type Employee } from '@/lib/firebase';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
@@ -13,6 +15,41 @@ export default function CreateBill() {
   const { id } = useParams();
   const { addInvoice, updateInvoice, invoices } = useInvoices();
   const { items: availableItems } = useItems();
+  const { user } = useAuth();
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+
+  const existingInvoice = invoices.find(inv => inv.id === id);
+
+  // Filter out system internal/default users to show only actual registered employees
+  const actualEmployees = employees.filter(
+    e => e.id !== 'mock-superadmin-uid' && e.id !== 'mock-admin-uid'
+  );
+
+  // Load employees list to get current user's phone number
+  useEffect(() => {
+    let unsub = () => { };
+    getEmployees((data) => setEmployees(data)).then(fn => { unsub = fn; }).catch(() => { });
+    return () => unsub();
+  }, []);
+
+  // Default select registered employee ONLY if editing an existing invoice to keep it blank for new bills
+  useEffect(() => {
+    if (id && existingInvoice && actualEmployees.length > 0 && !selectedEmployeeId) {
+      const match = actualEmployees.find(
+        e => e.name?.toLowerCase() === existingInvoice.createdBy?.toLowerCase()
+      );
+      if (match) {
+        setSelectedEmployeeId(match.id);
+      }
+    }
+  }, [id, existingInvoice, actualEmployees, selectedEmployeeId]);
+
+  // Find selected employee record for dynamic display
+  const selectedEmployee = actualEmployees.find(e => e.id === selectedEmployeeId);
+  const generatorName = selectedEmployee ? selectedEmployee.name : '';
+  const generatorPhone = selectedEmployee?.phone || '';
+  const generatorRole = selectedEmployee ? selectedEmployee.role : 'Staff';
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -29,17 +66,13 @@ export default function CreateBill() {
   const [advanceAmount, setAdvanceAmount] = useState(0);
   const [advanceMethod, setAdvanceMethod] = useState<'cash' | 'online'>('cash');
 
-  const [showCashInput, setShowCashInput] = useState(true);
-  const [showOnlineInput, setShowOnlineInput] = useState(false);
-  const [showAdvanceInput, setShowAdvanceInput] = useState(false);
+
   const [showRemaining, setShowRemaining] = useState(false);
   const [receivedAmount, setReceivedAmount] = useState<number | ''>('');
   const [isPrivate, setIsPrivate] = useState(false);
 
   const [error, setError] = useState('');
   const [paymentHistory, setPaymentHistory] = useState<PaymentEntry[]>([]);
-
-  const existingInvoice = invoices.find(inv => inv.id === id);
 
   useEffect(() => {
     if (id && existingInvoice) {
@@ -77,12 +110,17 @@ export default function CreateBill() {
       }
       setPaymentHistory(history);
     } else if (!id) {
-      // Auto-generate for new bills with current month prefix
-      const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-      const currentMonth = monthNames[new Date().getMonth()];
-      setInvoiceNumberInput(`${currentMonth}-${String(invoices.length + 1).padStart(3, '0')}`);
+      // Extract numeric values from existing invoices
+      const numericInvoices = invoices.map(inv => {
+        const num = parseInt(inv.invoiceNumber.replace(/\D/g, ''));
+        return isNaN(num) ? 0 : num;
+      });
+      const maxNum = numericInvoices.length > 0 ? Math.max(...numericInvoices) : 0;
+      const nextNum = maxNum + 1;
+      const paddedNum = String(nextNum).padStart(3, '0');
+      setInvoiceNumberInput(`INV ${paddedNum}`);
     }
-  }, [id, existingInvoice, invoices.length]);
+  }, [id, existingInvoice, invoices]);
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: string | number) => {
     const newItems = [...items];
@@ -120,8 +158,10 @@ export default function CreateBill() {
     setError('');
 
     if (!invoiceNumberInput.trim()) { setError('Invoice Number is required'); return; }
+    if (!selectedEmployeeId) { setError('Please select the employee generating this bill (Employee Name is mandatory).'); return; }
     if (!customerName.trim()) { setError('Customer name is required'); return; }
     if (!customerPhone.trim()) { setError('Customer mobile number is required'); return; }
+    if (customerPhone.trim().length !== 10) { setError('Customer mobile number must be exactly 10 digits'); return; }
     if (items.some(i => !i.name.trim() || i.quantity <= 0 || i.price <= 0)) {
       setError('All items must have a name, quantity > 0, and price > 0'); return;
     }
@@ -129,12 +169,12 @@ export default function CreateBill() {
     let finalHistory = paymentHistory;
     if (!existingInvoice) {
       finalHistory = [];
-      if (showAdvanceInput && advanceAmount > 0) {
+      if (advanceAmount > 0) {
         finalHistory.push({ id: crypto.randomUUID(), date: new Date().toISOString(), amount: advanceAmount, method: advanceMethod, note: 'Advance Phase' });
       }
-      const rCash = (showCashInput ? cashAmount : 0) - (advanceMethod === 'cash' && showAdvanceInput ? advanceAmount : 0);
+      const rCash = cashAmount - (advanceMethod === 'cash' ? advanceAmount : 0);
       if (rCash > 0) finalHistory.push({ id: crypto.randomUUID(), date: new Date().toISOString(), amount: rCash, method: 'cash', note: 'Initial Cash' });
-      const rOnline = (showOnlineInput ? onlineAmount : 0) - (advanceMethod === 'online' && showAdvanceInput ? advanceAmount : 0);
+      const rOnline = onlineAmount - (advanceMethod === 'online' ? advanceAmount : 0);
       if (rOnline > 0) finalHistory.push({ id: crypto.randomUUID(), date: new Date().toISOString(), amount: rOnline, method: 'online', note: 'Initial Online' });
     }
 
@@ -152,15 +192,18 @@ export default function CreateBill() {
       gstEnabled,
       gstAmount,
       totalAmount,
-      cashAmount: existingInvoice ? cashAmount : (showCashInput ? cashAmount : 0),
-      onlineAmount: existingInvoice ? onlineAmount : (showOnlineInput ? onlineAmount : 0),
-      advanceAmount: existingInvoice ? advanceAmount : (showAdvanceInput ? advanceAmount : 0),
+      cashAmount,
+      onlineAmount,
+      advanceAmount,
       advanceMethod,
       remainingAmount,
       paymentStatus,
       paymentHistory: finalHistory,
       isPrivate,
       createdAt: existingInvoice ? existingInvoice.createdAt : new Date().toISOString(),
+      createdBy: existingInvoice ? existingInvoice.createdBy : generatorName,
+      createdByRole: existingInvoice ? existingInvoice.createdByRole : generatorRole,
+      createdByPhone: existingInvoice ? existingInvoice.createdByPhone : generatorPhone,
     };
 
     if (existingInvoice) {
@@ -253,7 +296,14 @@ export default function CreateBill() {
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5" id="customer-phone-label">Phone No *</label>
                   <input
-                    type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
+                    type="text"
+                    value={customerPhone}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (val.length <= 10) {
+                        setCustomerPhone(val);
+                      }
+                    }}
                     className="w-full px-3 py-2.5 rounded-lg border border-input bg-background/50 text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring/20 focus:border-primary transition-shadow"
                     placeholder="Phone number"
                     aria-labelledby="customer-phone-label"
@@ -267,6 +317,64 @@ export default function CreateBill() {
                     placeholder="Email address"
                     aria-labelledby="customer-email-label"
                   />
+                </div>
+              </div>
+
+              {/* Bill Generator Info */}
+              <div className="mt-2 p-4 rounded-xl border border-violet-200/60 bg-gradient-to-r from-violet-50 to-indigo-50 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shrink-0">
+                    <BadgeCheck className="w-4 h-4 text-white" />
+                  </div>
+                  <span className="text-[10px] font-black text-violet-500 uppercase tracking-widest">Bill Generated By</span>
+                </div>
+                <div className="flex flex-wrap gap-4 flex-1">
+                  {/* Select Employee Dropdown */}
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-violet-400" />
+                    <div>
+                      <p className="text-[10px] text-violet-400 font-bold uppercase mb-0.5">Employee Name</p>
+                      <select
+                        value={selectedEmployeeId}
+                        onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                        className="bg-white/80 border border-violet-200 rounded-lg px-2 py-0.5 text-xs font-black text-violet-800 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 cursor-pointer"
+                      >
+                        <option value="" className="text-slate-400 italic font-semibold">Select Employee *</option>
+                        {actualEmployees.map((emp) => (
+                          <option key={emp.id} value={emp.id} className="font-semibold text-slate-800">
+                            {emp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {/* Role */}
+                  <div className="flex items-center gap-2">
+                    <BadgeCheck className="w-3.5 h-3.5 text-violet-400" />
+                    <div>
+                      <p className="text-[10px] text-violet-400 font-bold uppercase">Role</p>
+                      <span className={cn(
+                        'text-xs font-black px-2 py-0.5 rounded-full',
+                        !selectedEmployeeId
+                          ? 'bg-slate-100 text-slate-400 border border-slate-200 italic'
+                          : generatorRole === 'Super Admin'
+                            ? 'bg-pink-100 text-pink-700 border border-pink-200'
+                            : 'bg-violet-100 text-violet-700 border border-violet-200'
+                      )}>
+                        {selectedEmployeeId ? generatorRole : 'Select Employee'}
+                      </span>
+                    </div>
+                  </div>
+                  {/* Phone */}
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-violet-400" />
+                    <div>
+                      <p className="text-[10px] text-violet-400 font-bold uppercase">Phone No</p>
+                      <p className="text-sm font-black text-violet-800">
+                        {selectedEmployeeId ? (generatorPhone || <span className="text-violet-400 font-medium text-xs italic">Not registered</span>) : <span className="text-slate-400 font-medium text-xs italic">Select Employee</span>}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="mt-2">
@@ -338,8 +446,8 @@ export default function CreateBill() {
                     <label className="text-xs font-bold text-muted-foreground">PAYMENT STATUS (AUTO)</label>
                     <div className={cn(
                       "w-full px-3 py-2 rounded-lg border text-sm font-bold capitalize cursor-default",
-                      paymentStatus === 'completed' 
-                        ? "bg-success/10 border-success/20 text-success" 
+                      paymentStatus === 'completed'
+                        ? "bg-success/10 border-success/20 text-success"
                         : "bg-destructive/10 border-destructive/20 text-destructive"
                     )}>
                       {paymentStatus}
@@ -349,23 +457,83 @@ export default function CreateBill() {
 
                 <div className="pt-4 border-t border-border/50 space-y-4">
                   {!id ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setShowCashInput(!showCashInput)} className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border", showCashInput ? "bg-primary/10 border-primary/20 text-primary" : "bg-muted text-muted-foreground")}>Cash</button>
-                        <button type="button" onClick={() => setShowOnlineInput(!showOnlineInput)} className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border", showOnlineInput ? "bg-primary/10 border-primary/20 text-primary" : "bg-muted text-muted-foreground")}>Online</button>
-                        <button type="button" onClick={() => setShowAdvanceInput(!showAdvanceInput)} className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border", showAdvanceInput ? "bg-primary/10 border-primary/20 text-primary" : "bg-muted text-muted-foreground")}>Advance</button>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground">CASH AMOUNT</label>
+                        <input
+                          type="number"
+                          value={cashAmount || ''}
+                          onChange={e => setCashAmount(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-lg border bg-muted/30 text-sm font-bold"
+                          placeholder="0.00"
+                        />
                       </div>
-                      <div className="space-y-3">
-                        {showCashInput && <div className="space-y-1"><label className="text-[10px] font-bold text-muted-foreground">CASH AMOUNT</label><input type="number" value={cashAmount || ''} onChange={e => setCashAmount(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg border bg-muted/30 text-sm font-bold" /></div>}
-                        {showOnlineInput && <div className="space-y-1"><label className="text-[10px] font-bold text-muted-foreground">ONLINE AMOUNT</label><input type="number" value={onlineAmount || ''} onChange={e => setOnlineAmount(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg border bg-muted/30 text-sm font-bold" /></div>}
-                        {showAdvanceInput && (
-                          <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
-                            <div className="flex justify-between items-center"><span className="text-[10px] font-black text-primary">ADVANCE</span><div className="flex bg-muted p-0.5 rounded gap-1"><button type="button" onClick={() => { if (advanceMethod === 'online' && advanceAmount > 0) { setOnlineAmount(prev => Math.max(0, prev - advanceAmount)); setCashAmount(prev => prev + advanceAmount); } setAdvanceMethod('cash'); }} className={cn("px-2 py-0.5 text-[8px] font-bold rounded", advanceMethod === 'cash' ? "bg-background text-primary" : "text-muted-foreground")}>CASH</button><button type="button" onClick={() => { if (advanceMethod === 'cash' && advanceAmount > 0) { setCashAmount(prev => Math.max(0, prev - advanceAmount)); setOnlineAmount(prev => prev + advanceAmount); } setAdvanceMethod('online'); }} className={cn("px-2 py-0.5 text-[8px] font-bold rounded", advanceMethod === 'online' ? "bg-background text-primary" : "text-muted-foreground")}>ONLINE</button></div></div>
-                            <input type="number" value={advanceAmount || ''} onChange={e => { const val = Number(e.target.value); const diff = val - advanceAmount; setAdvanceAmount(val); if (advanceMethod === 'cash') { setCashAmount(prev => prev + diff); } else { setOnlineAmount(prev => prev + diff); } }} className="w-full px-3 py-1.5 bg-background border rounded text-xs font-black" />
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground">ONLINE AMOUNT</label>
+                        <input
+                          type="number"
+                          value={onlineAmount || ''}
+                          onChange={e => setOnlineAmount(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-lg border bg-muted/30 text-sm font-bold"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-primary">ADVANCE</span>
+                          <div className="flex bg-muted p-0.5 rounded gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (advanceMethod === 'online' && advanceAmount > 0) {
+                                  setOnlineAmount(prev => Math.max(0, prev - advanceAmount));
+                                  setCashAmount(prev => prev + advanceAmount);
+                                }
+                                setAdvanceMethod('cash');
+                              }}
+                              className={cn(
+                                "px-2 py-0.5 text-[8px] font-bold rounded",
+                                advanceMethod === 'cash' ? "bg-background text-primary" : "text-muted-foreground"
+                              )}
+                            >
+                              CASH
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (advanceMethod === 'cash' && advanceAmount > 0) {
+                                  setCashAmount(prev => Math.max(0, prev - advanceAmount));
+                                  setOnlineAmount(prev => prev + advanceAmount);
+                                }
+                                setAdvanceMethod('online');
+                              }}
+                              className={cn(
+                                "px-2 py-0.5 text-[8px] font-bold rounded",
+                                advanceMethod === 'online' ? "bg-background text-primary" : "text-muted-foreground"
+                              )}
+                            >
+                              ONLINE
+                            </button>
                           </div>
-                        )}
+                        </div>
+                        <input
+                          type="number"
+                          value={advanceAmount || ''}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            const diff = val - advanceAmount;
+                            setAdvanceAmount(val);
+                            if (advanceMethod === 'cash') {
+                              setCashAmount(prev => prev + diff);
+                            } else {
+                              setOnlineAmount(prev => prev + diff);
+                            }
+                          }}
+                          className="w-full px-3 py-1.5 bg-background border rounded text-xs font-black"
+                          placeholder="0.00"
+                        />
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <div className="space-y-4 animate-fade-in">
                       <h4 className="text-[10px] font-black text-foreground uppercase tracking-widest bg-muted py-1.5 px-3 rounded-lg inline-block">Payment History</h4>
@@ -433,7 +601,7 @@ export default function CreateBill() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="pt-6">
                   {error && <p className="text-[10px] font-bold text-destructive mb-3">{error}</p>}
                   <button type="submit" className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-black text-xs uppercase tracking-widest hover:opacity-90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-3">
@@ -456,7 +624,7 @@ export default function CreateBill() {
                   <label className="text-xs font-bold opacity-90">Amount Received from Customer</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-indigo-200">₹</span>
-                    <input 
+                    <input
                       type="number"
                       value={receivedAmount}
                       onChange={(e) => setReceivedAmount(e.target.value === '' ? '' : Number(e.target.value))}
@@ -481,10 +649,10 @@ export default function CreateBill() {
             </div>
 
             <div className="p-4 rounded-xl bg-card border border-border/50 text-center space-y-2">
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">Note</p>
-               <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
-                  Use the calculator above to quickly calculate return change for cash payments.
-               </p>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase">Note</p>
+              <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+                Use the calculator above to quickly calculate return change for cash payments.
+              </p>
             </div>
           </div>
         </div>
