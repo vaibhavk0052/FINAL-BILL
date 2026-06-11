@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { listenToPurchases, addPurchaseToFirestore, deletePurchaseFromFirestore } from '@/firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface Purchase {
   id: string;
@@ -31,25 +33,23 @@ const samplePurchases: Purchase[] = [
 ];
 
 export function PurchaseProvider({ children }: { children: ReactNode }) {
-  const [purchases, setPurchases] = useState<Purchase[]>(() => {
-    const saved = localStorage.getItem('billing_purchases');
-    if (saved) {
-      const parsed: Purchase[] = JSON.parse(saved);
-      return parsed.filter(p => p.id !== '1' && p.id !== '2');
-    }
-    return [];
-  });
+  const { user } = useAuth();
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('billing_purchases', JSON.stringify(purchases));
-  }, [purchases]);
+    if (!user) return;
+    const unsubscribe = listenToPurchases((data) => {
+      setPurchases(data);
+    });
+    return unsubscribe;
+  }, [user]);
 
   const addPurchase = useCallback((purchase: Purchase) => {
-    setPurchases(prev => [purchase, ...prev]);
+    addPurchaseToFirestore(purchase).catch(err => console.error("Error adding purchase to Firestore:", err));
   }, []);
 
   const deletePurchase = useCallback((id: string) => {
-    setPurchases(prev => prev.filter(p => p.id !== id));
+    deletePurchaseFromFirestore(id).catch(err => console.error("Error deleting purchase from Firestore:", err));
   }, []);
 
   const totalPurchaseAmount = purchases.reduce((s, p) => s + p.totalAmount, 0);

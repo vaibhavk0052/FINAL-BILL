@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { loginUser, logoutUser, UserProfile, isFirebaseConfigured, auth } from '@/lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { loginUser, logoutUser, UserProfile, isFirebaseConfigured, auth } from '@/firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return stored ? JSON.parse(stored) : null;
   });
   const [loading, setLoading] = useState(true);
+  const isInitialMount = useRef(true);
 
   // Sync auth state if using real Firebase
   useEffect(() => {
@@ -31,10 +32,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (parsed.uid === firebaseUser.uid) {
                 setUser(parsed);
                 setLoading(false);
+                isInitialMount.current = false;
                 return;
               }
+            } else if (isInitialMount.current) {
+              // ONLY on initial mount (app open): if no sessionStorage, sign them out of Firebase
+              isInitialMount.current = false;
+              await signOut(auth);
+              setUser(null);
+              setLoading(false);
+              return;
             }
-            // If not found in storage, create a default profile
+            
+            // If they are logging in right now (not initial mount), let the login action handle it
+            if (!isInitialMount.current) {
+              setLoading(false);
+              return;
+            }
+
+            // Fallback default profile creation on initial load
             const defaultProfile: UserProfile = {
               uid: firebaseUser.uid,
               name: firebaseUser.displayName || 'User',
@@ -52,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null);
           sessionStorage.removeItem('billing_user');
         }
+        isInitialMount.current = false;
         setLoading(false);
       });
       return unsubscribe;

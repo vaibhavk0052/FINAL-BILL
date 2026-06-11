@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useItems, type Item } from '@/contexts/ItemContext';
-import { PackagePlus, Trash2, Pencil, Eye, Save } from 'lucide-react';
+import { PackagePlus, Trash2, Pencil, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
@@ -45,11 +45,7 @@ export default function ManageItems() {
     setPrice(String(item.price));
   };
 
-  const handleView = (item: Item) => {
-    toast.info(`Viewing Item: ${item.itemName}`, {
-      description: `Current Price: ${fmt(item.price)}`,
-    });
-  };
+
 
   return (
     <div className="w-full space-y-6">
@@ -109,9 +105,6 @@ export default function ManageItems() {
                       <td className="px-5 py-3 font-medium text-card-foreground">{item.itemName}</td>
                       <td className="px-5 py-3 text-right tabular-nums text-foreground">{fmt(item.price)}</td>
                       <td className="px-5 py-3 flex items-center justify-center gap-2">
-                        <button onClick={() => handleView(item)} className="p-1.5 rounded-md text-blue-500 hover:bg-blue-500/10 transition-colors" title="View">
-                          <Eye className="w-4 h-4" />
-                        </button>
                         <button onClick={() => handleEdit(item)} className="p-1.5 rounded-md text-emerald-500 hover:bg-emerald-500/10 transition-colors" title="Edit">
                           <Pencil className="w-4 h-4" />
                         </button>

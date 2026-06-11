@@ -3,10 +3,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard, History, FilePlus, FileText, CreditCard, Clock,
   BarChart3, ShoppingCart, ClipboardList, Users2, Package, Tags,
-  IndianRupee, UserPlus, Settings, UserCircle, LogOut, Zap, ChevronDown, Trash2, X
+  IndianRupee, UserPlus, Settings, UserCircle, LogOut, Zap, ChevronDown, Trash2, X, FileSpreadsheet,
+  Sun, Moon
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 
 
 interface MenuItem {
@@ -25,61 +27,69 @@ const sectionColors: Record<string, {
   activeBg: string;
   hoverBg: string;
 }> = {
-  'Main':         {
-    gradient:   'from-cyan-500 to-blue-500',
-    badge:      'bg-cyan-50 text-cyan-600 border-cyan-200',
-    iconColor:  'text-cyan-500',
+  'Main': {
+    gradient: 'from-cyan-500 to-blue-500',
+    badge: 'bg-cyan-50 text-cyan-600 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-400 dark:border-cyan-800/40',
+    iconColor: 'text-cyan-500',
     activeGlow: 'shadow-[0_0_12px_hsl(190_80%_50%/0.2)]',
-    activeBg:   'bg-cyan-50 border-l-2 border-cyan-500',
-    hoverBg:    'hover:bg-cyan-50',
+    activeBg: 'bg-cyan-50 dark:bg-cyan-950/20 border-l-2 border-cyan-500 dark:text-cyan-400',
+    hoverBg: 'hover:bg-cyan-50 dark:hover:bg-cyan-950/10 dark:hover:text-cyan-400',
   },
-  'Purchases':    {
-    gradient:   'from-violet-500 to-purple-600',
-    badge:      'bg-violet-50 text-violet-600 border-violet-200',
-    iconColor:  'text-violet-500',
+  'Purchases': {
+    gradient: 'from-violet-500 to-purple-600',
+    badge: 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/40',
+    iconColor: 'text-violet-500',
     activeGlow: 'shadow-[0_0_12px_hsl(265_70%_60%/0.2)]',
-    activeBg:   'bg-violet-50 border-l-2 border-violet-500',
-    hoverBg:    'hover:bg-violet-50',
+    activeBg: 'bg-violet-50 dark:bg-violet-950/20 border-l-2 border-violet-500 dark:text-violet-400',
+    hoverBg: 'hover:bg-violet-50 dark:hover:bg-violet-950/10 dark:hover:text-violet-400',
   },
   'Sales Module': {
-    gradient:   'from-emerald-400 to-green-500',
-    badge:      'bg-emerald-50 text-emerald-600 border-emerald-200',
-    iconColor:  'text-emerald-500',
+    gradient: 'from-emerald-400 to-green-500',
+    badge: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40',
+    iconColor: 'text-emerald-500',
     activeGlow: 'shadow-[0_0_12px_hsl(148_60%_45%/0.2)]',
-    activeBg:   'bg-emerald-50 border-l-2 border-emerald-500',
-    hoverBg:    'hover:bg-emerald-50',
+    activeBg: 'bg-emerald-50 dark:bg-emerald-950/20 border-l-2 border-emerald-500 dark:text-emerald-400',
+    hoverBg: 'hover:bg-emerald-50 dark:hover:bg-emerald-950/10 dark:hover:text-emerald-400',
   },
   'Bills Module': {
-    gradient:   'from-pink-500 to-rose-600',
-    badge:      'bg-pink-50 text-pink-600 border-pink-200',
-    iconColor:  'text-pink-500',
+    gradient: 'from-pink-500 to-rose-600',
+    badge: 'bg-pink-50 text-pink-600 border-pink-200 dark:bg-pink-950/40 dark:text-pink-400 dark:border-pink-800/40',
+    iconColor: 'text-pink-500',
     activeGlow: 'shadow-[0_0_12px_hsl(330_80%_60%/0.2)]',
-    activeBg:   'bg-pink-50 border-l-2 border-pink-500',
-    hoverBg:    'hover:bg-pink-50',
+    activeBg: 'bg-pink-50 dark:bg-pink-950/20 border-l-2 border-pink-500 dark:text-pink-400',
+    hoverBg: 'hover:bg-pink-50 dark:hover:bg-pink-950/10 dark:hover:text-pink-400',
   },
   'Items Module': {
-    gradient:   'from-orange-400 to-amber-500',
-    badge:      'bg-orange-50 text-orange-600 border-orange-200',
-    iconColor:  'text-orange-500',
+    gradient: 'from-orange-400 to-amber-500',
+    badge: 'bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/40',
+    iconColor: 'text-orange-500',
     activeGlow: 'shadow-[0_0_12px_hsl(25_90%_55%/0.2)]',
-    activeBg:   'bg-orange-50 border-l-2 border-orange-500',
-    hoverBg:    'hover:bg-orange-50',
+    activeBg: 'bg-orange-50 dark:bg-orange-950/20 border-l-2 border-orange-500 dark:text-orange-400',
+    hoverBg: 'hover:bg-orange-50 dark:hover:bg-orange-950/10 dark:hover:text-orange-400',
   },
-  'System':       {
-    gradient:   'from-red-400 to-pink-600',
-    badge:      'bg-red-50 text-red-600 border-red-200',
-    iconColor:  'text-red-500',
+  'System': {
+    gradient: 'from-red-400 to-pink-600',
+    badge: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/40',
+    iconColor: 'text-red-500',
     activeGlow: 'shadow-[0_0_12px_hsl(0_80%_60%/0.2)]',
-    activeBg:   'bg-red-50 border-l-2 border-red-500',
-    hoverBg:    'hover:bg-red-50',
+    activeBg: 'bg-red-50 dark:bg-red-950/20 border-l-2 border-red-500 dark:text-red-400',
+    hoverBg: 'hover:bg-red-50 dark:hover:bg-red-950/10 dark:hover:text-red-400',
   },
   'Expenses': {
-    gradient:   'from-indigo-500 to-blue-600',
-    badge:      'bg-indigo-50 text-indigo-600 border-indigo-200',
-    iconColor:  'text-indigo-500',
+    gradient: 'from-indigo-500 to-blue-600',
+    badge: 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/40',
+    iconColor: 'text-indigo-500',
     activeGlow: 'shadow-[0_0_12px_hsl(220_80%_60%/0.2)]',
-    activeBg:   'bg-indigo-50 border-l-2 border-indigo-500',
-    hoverBg:    'hover:bg-indigo-50',
+    activeBg: 'bg-indigo-50 dark:bg-indigo-950/20 border-l-2 border-indigo-500 dark:text-indigo-400',
+    hoverBg: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/10 dark:hover:text-indigo-400',
+  },
+  'Quotation Module': {
+    gradient: 'from-indigo-500 to-indigo-700',
+    badge: 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/40',
+    iconColor: 'text-indigo-500',
+    activeGlow: 'shadow-[0_0_12px_hsl(230_70%_60%/0.2)]',
+    activeBg: 'bg-indigo-50 dark:bg-indigo-950/20 border-l-2 border-indigo-500 dark:text-indigo-400',
+    hoverBg: 'hover:bg-indigo-50 dark:hover:bg-indigo-950/10 dark:hover:text-indigo-400',
   },
 };
 
@@ -93,8 +103,7 @@ const menu: { section: string; items: (MenuItem & { role?: string })[] }[] = [
   {
     section: 'Purchases',
     items: [
-      { label: 'Purchase Entry',   icon: ShoppingCart,  path: '/purchase-entry' },
-      { label: 'Purchase History', icon: ClipboardList, path: '/purchase-history' },
+      { label: 'Purchase Entry', icon: ShoppingCart, path: '/purchase-entry' },
     ],
   },
   {
@@ -106,16 +115,23 @@ const menu: { section: string; items: (MenuItem & { role?: string })[] }[] = [
   {
     section: 'Bills Module',
     items: [
-      { label: 'Create Bill', icon: FilePlus,      path: '/create-bill' },
-      { label: 'All Bills',   icon: FileText,      path: '/all-bills' },
+      { label: 'Create Bill', icon: FilePlus, path: '/create-bill' },
+      { label: 'All Bills', icon: FileText, path: '/all-bills' },
       { label: 'Daily report', icon: ClipboardList, path: '/daily-report' },
-      { label: 'Bill Trash',  icon: Trash2,        path: '/bill-trash', role: 'superadmin' },
+      { label: 'Bill Trash', icon: Trash2, path: '/bill-trash', role: 'superadmin' },
+    ],
+  },
+  {
+    section: 'Quotation Module',
+    items: [
+      { label: 'Create Estimate', icon: FilePlus, path: '/create-quotation' },
+      { label: 'Quotation List', icon: FileSpreadsheet, path: '/quotations' },
     ],
   },
   {
     section: 'Items Module',
     items: [
-      { label: 'Manage Items', icon: Package, path: '/items' },
+      { label: 'Services', icon: Package, path: '/items' },
     ],
   },
   {
@@ -139,8 +155,9 @@ interface AppSidebarProps {
 
 export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps) {
   const location = useLocation();
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   // Filter menu items dynamically according to current user's role
   const filteredMenu = useMemo(() => {
@@ -163,8 +180,8 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
         isOpen ? "translate-x-0" : "-translate-x-full"
       )}
       style={{
-        background: 'linear-gradient(160deg, #fff5f8 0%, #ffffff 40%, #f0fdf4 100%)',
-        borderRight: '1px solid hsl(330 20% 90%)',
+        background: 'linear-gradient(160deg, var(--sidebar-bg-start) 0%, var(--sidebar-bg-mid) 40%, var(--sidebar-bg-end) 100%)',
+        borderRight: '1px solid hsl(var(--border))',
       }}
     >
       {/* Animated background orbs */}
@@ -195,7 +212,7 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
       {/* ── Logo / Header ── */}
       <div
         className="relative h-16 flex items-center justify-between px-5 shrink-0"
-        style={{ borderBottom: '1px solid hsl(330 20% 90%)' }}
+        style={{ borderBottom: '1px solid hsl(var(--border))' }}
       >
         <div className="flex items-center gap-3">
           {/* Shimmer logo icon */}
@@ -237,7 +254,7 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
       </div>
 
       {/* ── Navigation ── */}
-      <nav className="relative flex-1 overflow-hidden py-2 px-3 flex flex-col gap-1">
+      <nav className="relative flex-1 overflow-y-auto py-2 px-3 flex flex-col gap-1 scrollbar-none">
         {filteredMenu.map((group, gi) => {
           const sc = sectionColors[group.section] ?? sectionColors['System'];
           return (
@@ -294,11 +311,35 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
       {/* ── User / Logout ── */}
       <div
         className="relative p-3 shrink-0"
-        style={{ borderTop: '1px solid hsl(330 20% 90%)' }}
+        style={{ borderTop: '1px solid hsl(var(--border))' }}
       >
+        {/* Theme Toggle */}
+        <div className="px-3 py-2 flex items-center justify-between text-slate-600 dark:text-slate-400 text-sm font-semibold mb-2">
+          <span className="flex items-center gap-3">
+            <span className="w-8 h-8 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 flex items-center justify-center">
+              {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
+            </span>
+            <span>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</span>
+          </span>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className={cn(
+              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+              theme === 'dark' ? "bg-indigo-600" : "bg-slate-200"
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                theme === 'dark' ? "translate-x-5" : "translate-x-0"
+              )}
+            />
+          </button>
+        </div>
+
         {/* User card */}
         <div
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 bg-white/60 shadow-sm border border-slate-100 backdrop-blur-sm"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-1 bg-white/60 dark:bg-card/60 shadow-sm border border-slate-100 dark:border-border/30 backdrop-blur-sm"
         >
           {/* Avatar with gradient ring */}
           <div
@@ -311,7 +352,7 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
             {user?.name?.[0]?.toUpperCase() ?? 'A'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-base font-semibold text-slate-800 truncate">{user?.name || 'Administrator'}</p>
+            <p className="text-base font-semibold text-slate-800 dark:text-slate-200 truncate">{user?.name || 'Administrator'}</p>
             <p
               className="text-xs font-medium font-sans"
               style={{
@@ -328,9 +369,9 @@ export default function AppSidebar({ isOpen = false, onClose }: AppSidebarProps)
         {/* Logout */}
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-base transition-all duration-200 group text-slate-600 hover:text-red-500 hover:bg-red-50"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-base transition-all duration-200 group text-slate-600 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
         >
-          <span className="w-8 h-8 rounded-lg bg-slate-100/50 group-hover:bg-red-100 flex items-center justify-center transition-colors">
+          <span className="w-8 h-8 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 group-hover:bg-red-100 dark:group-hover:bg-red-500/20 flex items-center justify-center transition-colors">
             <LogOut className="w-4 h-4 group-hover:text-red-500" />
           </span>
           <span className="font-medium">Logout</span>

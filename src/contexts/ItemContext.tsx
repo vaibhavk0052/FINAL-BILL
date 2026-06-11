@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import { listenToItems, addItemToFirestore, deleteItemFromFirestore } from '@/firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface Item {
   id: string;
@@ -15,36 +17,28 @@ interface ItemContextType {
 
 const ItemContext = createContext<ItemContextType | undefined>(undefined);
 
-const sampleItems: Item[] = [
-  { id: '1', itemName: 'Photoshop Editing', price: 500 },
-  { id: '2', itemName: 'Banner Design', price: 1200 },
-  { id: '3', itemName: 'Video Color Grading', price: 2500 },
-];
-
 export function ItemProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<Item[]>(() => {
-    const saved = localStorage.getItem('billing_items');
-    if (saved) {
-      const parsed: Item[] = JSON.parse(saved);
-      return parsed.filter(i => i.id !== '1' && i.id !== '2' && i.id !== '3');
-    }
-    return [];
-  });
+  const { user } = useAuth();
+  const [items, setItems] = useState<Item[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('billing_items', JSON.stringify(items));
-  }, [items]);
+    if (!user) return;
+    const unsubscribe = listenToItems((data) => {
+      setItems(data);
+    });
+    return unsubscribe;
+  }, [user]);
 
   const addItem = useCallback((item: Item) => {
-    setItems(prev => [item, ...prev]);
+    addItemToFirestore(item).catch(err => console.error("Error adding item to Firestore:", err));
   }, []);
 
   const deleteItem = useCallback((id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
+    deleteItemFromFirestore(id).catch(err => console.error("Error deleting item from Firestore:", err));
   }, []);
 
   const updateItem = useCallback((updatedItem: Item) => {
-    setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+    addItemToFirestore(updatedItem).catch(err => console.error("Error updating item in Firestore:", err));
   }, []);
 
   return (

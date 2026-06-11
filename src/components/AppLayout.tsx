@@ -8,19 +8,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
 
   return (
-    <div className="flex h-screen w-full bg-[#f8fafc] relative overflow-hidden">
+    <div className="flex h-screen w-full bg-background relative overflow-hidden text-foreground">
       {/* Premium subtle background glow for the main app area */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-pink-100/50 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/3" />
-        <div className="absolute bottom-0 left-1/4 w-[600px] h-[600px] bg-emerald-50/60 rounded-full blur-3xl opacity-60 translate-y-1/3" />
-        <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] bg-purple-50/50 rounded-full blur-3xl opacity-50 -translate-x-1/2 -translate-y-1/2" />
+        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-pink-100/50 dark:bg-pink-950/10 rounded-full blur-3xl opacity-60 -translate-y-1/2 translate-x-1/3" />
+        <div className="absolute bottom-0 left-1/4 w-[600px] h-[600px] bg-emerald-50/60 dark:bg-emerald-950/10 rounded-full blur-3xl opacity-60 translate-y-1/3" />
+        <div className="absolute top-1/2 left-1/2 w-[500px] h-[500px] bg-purple-50/50 dark:bg-purple-950/10 rounded-full blur-3xl opacity-50 -translate-x-1/2 -translate-y-1/2" />
       </div>
 
       {/* Mobile Responsive Header Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-md border-b border-slate-200/60 z-30 flex items-center justify-between px-4 no-print">
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-card/80 backdrop-blur-md border-b border-slate-200/60 dark:border-border/30 z-30 flex items-center justify-between px-4 no-print">
         <button
           onClick={() => setSidebarOpen(true)}
-          className="p-2 rounded-xl hover:bg-slate-100 transition-colors text-slate-700 active:scale-95"
+          className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300 active:scale-95"
           aria-label="Open Sidebar"
         >
           <Menu className="w-6 h-6" />

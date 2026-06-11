@@ -1,4 +1,4 @@
-import { type Invoice } from '@/contexts/InvoiceContext';
+import { type Quotation } from '@/firebase/firestore';
 import { useEffect } from 'react';
 import { X, Printer, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -6,12 +6,12 @@ import { cn } from '@/lib/utils';
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 interface Props {
-  invoice: Invoice;
+  quotation: Quotation;
   onClose: () => void;
   autoPrint?: boolean;
 }
 
-export default function InvoicePreview({ invoice, onClose, autoPrint = false }: Props) {
+export default function QuotationPreview({ quotation, onClose, autoPrint = false }: Props) {
   const handlePrint = () => window.print();
 
   useEffect(() => {
@@ -29,31 +29,28 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <h2 className="font-semibold text-card-foreground">Invoice Preview</h2>
-            <span className={cn(
-              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider',
-              invoice.paymentStatus === 'completed' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-            )}>
-              {invoice.paymentStatus}
+            <h2 className="font-semibold text-card-foreground">Quotation Preview</h2>
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium uppercase tracking-wider bg-indigo-500/10 text-indigo-600">
+              Estimate
             </span>
           </div>
-          <div className="flex gap-1">
-            <button onClick={handlePrint} className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+          <div className="flex gap-2">
+            <button onClick={handlePrint} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <Printer className="w-4 h-4" />
             </button>
-            <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Invoice Body */}
+        {/* Quotation Body */}
         <div className="p-6 space-y-6 print-only">
           {/* Company Header */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-1">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-indigo-600" />
               </div>
               <div>
                 <h3 className="font-bold text-card-foreground">PhotoBill Pro</h3>
@@ -61,43 +58,33 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
               </div>
             </div>
             <div className="text-right">
-              {invoice.isImp && (
-                <div className="mb-1">
-                  <span className="inline-block text-[8px] font-black uppercase tracking-widest text-amber-600 border border-amber-500/25 px-1.5 py-0.5 rounded bg-amber-500/5 select-none leading-none">
-                    IMP
-                  </span>
-                </div>
-              )}
-              <p className="font-black text-lg text-card-foreground uppercase tracking-wide">{invoice.invoiceNumber}</p>
+              <p className="font-black text-lg text-card-foreground uppercase tracking-wide">{quotation.quotationNumber}</p>
               <p className="text-xs font-medium text-muted-foreground mt-1">
-                {new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(invoice.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                {new Date(quotation.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} - {new Date(quotation.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
               </p>
-              <span className={cn(
-                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1.5 uppercase tracking-wider',
-                invoice.paymentStatus === 'completed' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'
-              )}>
-                {invoice.paymentStatus}
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1.5 uppercase tracking-wider bg-indigo-500/10 text-indigo-600">
+                PROPOSAL ESTIMATE
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 rounded-lg p-5">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Bill To</p>
-              <p className="font-medium text-lg text-card-foreground">{invoice.customerName}</p>
-              {invoice.customerPhone && <p className="text-sm text-muted-foreground mt-1">{invoice.customerPhone}</p>}
-              {invoice.customerEmail && <p className="text-sm text-muted-foreground">{invoice.customerEmail}</p>}
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Estimate To</p>
+              <p className="font-medium text-lg text-card-foreground">{quotation.customerName}</p>
+              {quotation.customerPhone && <p className="text-sm text-muted-foreground mt-1">{quotation.customerPhone}</p>}
+              {quotation.customerEmail && <p className="text-sm text-muted-foreground">{quotation.customerEmail}</p>}
             </div>
             <div className="sm:text-right">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Billed By</p>
-              <p className="font-bold text-lg text-card-foreground">{invoice.createdBy || 'System'}</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Generated By</p>
+              <p className="font-bold text-lg text-card-foreground">{quotation.createdBy || 'System'}</p>
             </div>
           </div>
 
-          {invoice.description && (
-            <div className="px-1 border-l-2 border-primary/20 bg-primary/5 py-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</p>
-              <p className="text-sm text-card-foreground whitespace-pre-wrap">{invoice.description}</p>
+          {quotation.description && (
+            <div className="px-1 border-l-2 border-indigo-500/20 bg-indigo-500/5 py-2 flex flex-col items-center text-center">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">CATEGORY</p>
+              <p className="text-sm text-card-foreground whitespace-pre-wrap">{quotation.description}</p>
             </div>
           )}
 
@@ -105,14 +92,14 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 font-medium text-muted-foreground">Item</th>
+                <th className="text-left py-2 font-medium text-muted-foreground">Item / Service</th>
                 <th className="text-center py-2 font-medium text-muted-foreground">Qty</th>
-                <th className="text-right py-2 font-medium text-muted-foreground">Price</th>
+                <th className="text-right py-2 font-medium text-muted-foreground">Est. Rate</th>
                 <th className="text-right py-2 font-medium text-muted-foreground">Total</th>
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, i) => (
+              {quotation.items.map((item, i) => (
                 <tr key={i} className="border-b border-border/30">
                   <td className="py-2 text-card-foreground">
                     <div className="font-semibold">{item.name}</div>
@@ -129,65 +116,17 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
           </table>
 
           {/* Totals & Payments */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Payment Details</p>
-              {invoice.paymentHistory && invoice.paymentHistory.length > 0 ? (
-                <div className="space-y-1">
-                  {invoice.paymentHistory.map((ph, idx) => (
-                    <div key={idx} className="flex justify-between text-sm items-center">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground text-xs">{new Date(ph.date).toLocaleDateString()}</span>
-                        <span className={cn("text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm", ph.method === 'cash' ? "bg-emerald-500/10 text-emerald-600" : "bg-blue-500/10 text-blue-600")}>{ph.method}</span>
-                        {ph.note && <span className="text-[10px] text-muted-foreground hidden sm:inline-block">- {ph.note}</span>}
-                      </div>
-                      <span className="font-medium text-foreground">{fmt(ph.amount)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm pt-2 mt-2 border-t border-dotted border-border font-bold">
-                    <span className="text-foreground">Total Paid</span>
-                    <span className="text-foreground">{fmt((invoice.cashAmount || 0) + (invoice.onlineAmount || 0))}</span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Cash Payment</span>
-                    <span className="font-medium text-foreground">{fmt(invoice.cashAmount || 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Online Payment</span>
-                    <span className="font-medium text-foreground">{fmt(invoice.onlineAmount || 0)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground font-semibold text-primary">Advance Payment</span>
-                    <span className="font-bold text-primary">{fmt(invoice.advanceAmount || 0)}</span>
-                  </div>
-                </>
-              )}
-              <div className="flex justify-between text-sm pt-2 mt-2 border-t border-dotted border-border">
-                <span className="font-bold text-destructive">Remaining Balance</span>
-                <span className="font-bold text-destructive">{fmt(invoice.remainingAmount || 0)}</span>
+          <div className="flex justify-end pt-4 border-t border-border">
+            <div className="space-y-1.5 text-sm w-full max-w-xs">
+              <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums font-medium text-foreground">{fmt(quotation.subtotal)}</span></div>
+              {quotation.discount > 0 && <div className="flex justify-between text-muted-foreground"><span>Discount</span><span className="tabular-nums text-success">-{fmt(quotation.discount)}</span></div>}
+              <div className="flex justify-between text-muted-foreground"><span>Taxable Amount</span><span className="tabular-nums">{fmt(quotation.taxableAmount)}</span></div>
+              {quotation.gstEnabled && <div className="flex justify-between text-muted-foreground"><span>GST (18%)</span><span className="tabular-nums">{fmt(quotation.gstAmount)}</span></div>}
+              <div className="flex justify-between font-bold text-lg text-indigo-600 pt-2 border-t border-border">
+                <span>Estimated Total</span><span className="tabular-nums">{fmt(quotation.totalAmount)}</span>
               </div>
             </div>
-
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between text-muted-foreground"><span>Subtotal</span><span className="tabular-nums font-medium text-foreground">{fmt(invoice.subtotal)}</span></div>
-              {invoice.discount > 0 && <div className="flex justify-between text-muted-foreground"><span>Discount</span><span className="tabular-nums text-success">-{fmt(invoice.discount)}</span></div>}
-              <div className="flex justify-between text-muted-foreground"><span>Taxable Amount</span><span className="tabular-nums">{fmt(invoice.taxableAmount)}</span></div>
-              {invoice.gstEnabled && <div className="flex justify-between text-muted-foreground"><span>GST (18%)</span><span className="tabular-nums">{fmt(invoice.gstAmount)}</span></div>}
-              <div className="flex justify-between font-bold text-lg text-primary pt-2 border-t border-border">
-                <span>Total Amount</span><span className="tabular-nums">{fmt(invoice.totalAmount)}</span>
-              </div>
-              {invoice.remainingAmount > 0 && (
-                <div className="flex justify-between font-bold text-lg text-destructive pt-1">
-                  <span>Remaining</span><span className="tabular-nums">{fmt(invoice.remainingAmount)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Terms & Conditions for Print */}
+          </div>          {/* Terms & Conditions for Print */}
           <div className="pt-4 mt-4 border-t border-border break-inside-avoid">
             <h4 className="font-bold text-card-foreground mb-2 text-[10px] uppercase tracking-widest text-center sm:text-left">अटी व शर्ती · Terms & Conditions</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[9px] sm:text-[10px] leading-tight">
@@ -221,7 +160,7 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
               </div>
               <div className="space-y-1 bg-muted/5 dark:bg-muted/15 rounded-md p-2 border border-border/20">
                 <p className="font-bold text-card-foreground">8. Minor variations in photo prints, album prints, colors, lamination, finishing, and other print-related processes may occur due to technical, chemical, environmental, or production factors and shall not be considered defects.</p>
-                <p className="text-muted-foreground text-[8px] sm:text-[8.5px] italic">तांत्रिक, रासायनिक, पर्यावरणीय किंवा उत्पादन प्रक्रियेतील कारणांमुळे फोटो प्रिंट्स, अल्बम प्रिंट्स, रंग, लॅमिनेशन किंवा फिनिशिंगमध्ये किरкоळ फरक आढळू शकतो. ते दोष मानले जाणार नाहीत.</p>
+                <p className="text-muted-foreground text-[8px] sm:text-[8.5px] italic">तांत्रिक, रासायनिक, पर्यावरणीय किंवा उत्पादन प्रक्रियेतील कारणांमुळे फोटो प्रिंट्स, अल्बम प्रिंट्स, रंग, लॅमिनेशन किंवा फिनिशिंगमध्ये किरकोळ फरक आढळू शकतो. ते दोष मानले जाणार नाहीत.</p>
               </div>
               <div className="space-y-1 bg-muted/5 dark:bg-muted/15 rounded-md p-2 border border-border/20">
                 <p className="font-bold text-card-foreground">9. The studio shall not be responsible for any loss, damage, or delay caused by natural disasters, fire, flood, theft, equipment failure, hard disk failure, memory card corruption, software issues, data loss, power failures, or any circumstances beyond its control. Clients are requested to collect their completed photos, videos, albums, and other deliverables within 30 days of notification. After this period, the studio will not be responsible for their storage or safety.</p>
@@ -238,11 +177,11 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false }: 
             <div className="mt-4 pt-3 border-t border-border/50 text-center flex justify-between items-end">
               <div className="text-[9px] text-muted-foreground text-left">
                 <p className="font-bold text-foreground">Customer Signature</p>
-                <p className="mt-4 border-t border-border w-24 pt-0.5">Authorized Signatory</p>
+                <p className="mt-4 border-t border-border w-24 pt-0.5">Acceptance Signature</p>
               </div>
               <div className="text-[9px] text-muted-foreground text-right">
                 <p className="font-bold text-foreground">For PhotoBill Pro</p>
-                <p className="mt-4 border-t border-border w-24 pt-0.5 inline-block">Authorized Signatory</p>
+                <p className="mt-4 border-t border-border w-24 pt-0.5 inline-block">Authorized Representative</p>
               </div>
             </div>
           </div>

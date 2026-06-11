@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IndianRupee, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { listenToExpenses, addExpenseRecordToFirestore, deleteExpenseRecordFromFirestore } from '@/firebase/firestore';
 
 interface Expense {
   id: string;
@@ -13,10 +14,7 @@ interface Expense {
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 export default function AddExpenses() {
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('billing_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
@@ -24,8 +22,11 @@ export default function AddExpenses() {
   const [category, setCategory] = useState('General');
 
   useEffect(() => {
-    localStorage.setItem('billing_expenses', JSON.stringify(expenses));
-  }, [expenses]);
+    const unsubscribe = listenToExpenses((data) => {
+      setExpenses(data);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +35,7 @@ export default function AddExpenses() {
       return;
     }
 
-    const newExpense: Expense = {
+    const newExpense = {
       id: crypto.randomUUID(),
       date,
       description,
@@ -42,17 +43,27 @@ export default function AddExpenses() {
       category
     };
 
-    setExpenses(prev => [newExpense, ...prev]);
-    toast.success('Expense added successfully');
-    
-    // Reset form fields
-    setDescription('');
-    setAmount('');
+    addExpenseRecordToFirestore(newExpense)
+      .then(() => {
+        toast.success('Expense added successfully');
+        setDescription('');
+        setAmount('');
+      })
+      .catch(err => {
+        console.error(err);
+        toast.error('Failed to save expense');
+      });
   };
 
   const deleteExpense = (id: string) => {
-    setExpenses(prev => prev.filter(exp => exp.id !== id));
-    toast.success('Expense deleted');
+    deleteExpenseRecordFromFirestore(id)
+      .then(() => {
+        toast.success('Expense deleted');
+      })
+      .catch(err => {
+        console.error(err);
+        toast.error('Failed to delete expense');
+      });
   };
 
   return (
@@ -72,10 +83,10 @@ export default function AddExpenses() {
               <input type="date" value={date} onChange={e => setDate(e.target.value)} required
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring/20" />
             </div>
-            
+
             <div className="w-full md:w-48">
               <label className="block text-sm font-medium mb-1.5 text-foreground">Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value)} 
+              <select value={category} onChange={e => setCategory(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-input bg-background/50 focus:outline-none focus:ring-2 focus:ring-ring/20">
                 <option value="General">General</option>
                 <option value="Supplies">Supplies</option>
@@ -111,10 +122,10 @@ export default function AddExpenses() {
           <div className="p-4 border-b border-border/50 bg-muted/10 flex justify-between items-center">
             <h3 className="font-semibold text-foreground text-sm">Recent Expenses</h3>
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest bg-muted px-2 py-1 rounded-full border">
-               Total: {fmt(expenses.reduce((acc, curr) => acc + curr.amount, 0))}
+              Total: {fmt(expenses.reduce((acc, curr) => acc + curr.amount, 0))}
             </span>
           </div>
-          
+
           <div className="overflow-y-auto w-full relative" style={{ maxHeight: '400px' }}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10 bg-card shadow-sm">

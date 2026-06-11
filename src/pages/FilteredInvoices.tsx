@@ -37,7 +37,16 @@ export default function FilteredInvoices({ status }: { status: 'completed' | 'pe
             <tbody>
               {filtered.map(inv => (
                 <tr key={inv.id} className="border-b border-border/30 last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3 font-medium text-card-foreground">{inv.invoiceNumber}</td>
+                  <td className="px-5 py-3 font-medium text-card-foreground">
+                    <div className="flex items-center gap-2">
+                      {inv.isImp && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[8px] font-black uppercase tracking-wider border border-amber-500/20 shrink-0 select-none">
+                          IMP
+                        </span>
+                      )}
+                      <span>{inv.invoiceNumber}</span>
+                    </div>
+                  </td>
                   <td className="px-5 py-3">{inv.customerName}</td>
                   <td className="px-5 py-3 text-right font-medium tabular-nums">{fmt(inv.totalAmount)}</td>
                   <td className="px-5 py-3 text-right font-medium tabular-nums text-destructive">{fmt(inv.remainingAmount || 0)}</td>

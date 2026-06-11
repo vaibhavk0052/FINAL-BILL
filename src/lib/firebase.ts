@@ -1,26 +1,27 @@
 import { initializeApp, getApps, deleteApp } from 'firebase/app';
-import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  createUserWithEmailAndPassword, 
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  onSnapshot, 
-  query, 
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  addDoc,
+  getDocs,
+  onSnapshot,
+  query,
   orderBy,
   limit,
   updateDoc,
-  deleteDoc
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 
 // Vite environment variables for Firebase configuration
@@ -35,8 +36,8 @@ const firebaseConfig = {
 
 // Check if Firebase keys are fully configured
 const isFirebaseConfigured = !!(
-  firebaseConfig.apiKey && 
-  firebaseConfig.projectId && 
+  firebaseConfig.apiKey &&
+  firebaseConfig.projectId &&
   firebaseConfig.authDomain
 );
 
@@ -186,14 +187,14 @@ export const loginUser = async (email: string, password: string): Promise<UserPr
     if (!email.includes('@')) {
       targetEmail = email === 'superadmin' ? 'superadmin@photobill.com' : 'admin@photobill.com';
     }
-    
+
     const userCredential = await signInWithEmailAndPassword(auth, targetEmail, password);
     const uid = userCredential.user.uid;
-    
+
     // 2. Fetch User Role from Firestore
     const userDocRef = doc(db, 'users', uid);
     const userDoc = await getDoc(userDocRef);
-    
+
     if (userDoc.exists()) {
       return { uid, ...userDoc.data() } as UserProfile;
     } else {
@@ -271,12 +272,12 @@ export const addEmployee = async (employeeData: Omit<Employee, 'id'>, authPasswo
     const secondaryAppName = 'SecondaryAuthRegister_' + Date.now();
     const secApp = initializeApp(firebaseConfig, secondaryAppName);
     const secAuth = getAuth(secApp);
-    
+
     try {
       // 1. Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(
-        secAuth, 
-        employeeData.email, 
+        secAuth,
+        employeeData.email,
         authPassword || '123456'
       );
       const uid = userCredential.user.uid;
@@ -381,9 +382,9 @@ export const addBillToFirestore = async (billData: Omit<Bill, 'id'>, customId?: 
     const billDocRef = doc(db, 'bills', id);
     const docSnap = await getDoc(billDocRef);
     const isNew = !docSnap.exists();
-    
+
     await setDoc(billDocRef, billData);
-    
+
     if (isNew) {
       // Auto-update daily reports metrics
       await recordInvoiceInDailyReports(billData.amount, billData.status === 'completed' ? billData.amount : 0, 0);
@@ -409,12 +410,24 @@ export const addBillToFirestore = async (billData: Omit<Bill, 'id'>, customId?: 
 export const deleteBillFromFirestore = async (id: string): Promise<void> => {
   if (isFirebaseConfigured) {
     try {
-      await deleteDoc(doc(db, 'bills', id));
+      const billDocRef = doc(db, 'bills', id);
+      const billSnap = await getDoc(billDocRef);
+      if (billSnap.exists()) {
+        const data = billSnap.data();
+        const amount = data.totalAmount || data.amount || 0;
+        const dateStr = data.createdAt ? data.createdAt.split('T')[0] : (data.date || new Date().toISOString().split('T')[0]);
+        await subtractInvoiceFromDailyReports(amount, dateStr);
+      }
+      await deleteDoc(billDocRef);
     } catch (err) {
       console.error("Error deleting bill from Firestore:", err);
     }
   } else {
     const bills = getLocalCollection<Bill>(MOCK_BILLS_KEY);
+    const deletedBill = bills.find(b => b.id === id);
+    if (deletedBill) {
+      await subtractInvoiceFromDailyReports(deletedBill.amount, deletedBill.date);
+    }
     const filtered = bills.filter(b => b.id !== id);
     setLocalCollection(MOCK_BILLS_KEY, filtered);
   }
@@ -473,10 +486,43 @@ export const addExpenseToFirestore = async (amount: number, dateStr: string): Pr
   }
 };
 
+export const subtractInvoiceFromDailyReports = async (amount: number, dateStr: string): Promise<void> => {
+  if (isFirebaseConfigured) {
+    try {
+      const reportRef = doc(db, 'dailyReports', dateStr);
+      const reportSnap = await getDoc(reportRef);
+      if (reportSnap.exists()) {
+        const data = reportSnap.data() as DailyReportData;
+        const currentRev = data.revenue || 0;
+        const currentInvoices = data.invoices || 0;
+        const newRev = Math.max(0, currentRev - amount);
+        const newInvoices = Math.max(0, currentInvoices - 1);
+        const currentExp = data.expenses || 0;
+        await updateDoc(reportRef, {
+          revenue: newRev,
+          profit: newRev - currentExp,
+          invoices: newInvoices
+        });
+      }
+    } catch (err) {
+      console.error("Error subtracting invoice from daily reports:", err);
+    }
+  } else {
+    const reports = getLocalCollection<DailyReportData>(MOCK_DAILY_REPORTS_KEY);
+    const existing = reports.find(r => r.date === dateStr);
+    if (existing) {
+      existing.revenue = Math.max(0, existing.revenue - amount);
+      existing.invoices = Math.max(0, existing.invoices - 1);
+      existing.profit = existing.revenue - existing.expenses;
+      setLocalCollection(MOCK_DAILY_REPORTS_KEY, reports);
+    }
+  }
+};
+
 const updateMockDailyReports = (revenue: number, expenses: number, dateStr: string) => {
   const reports = getLocalCollection<DailyReportData>(MOCK_DAILY_REPORTS_KEY);
   const existing = reports.find(r => r.date === dateStr);
-  
+
   if (existing) {
     existing.revenue += revenue;
     existing.expenses += expenses;
@@ -491,7 +537,7 @@ const updateMockDailyReports = (revenue: number, expenses: number, dateStr: stri
       invoices: revenue > 0 ? 1 : 0
     });
   }
-  
+
   // Keep last 7 days only or sort
   reports.sort((a, b) => a.date.localeCompare(b.date));
   setLocalCollection(MOCK_DAILY_REPORTS_KEY, reports);
@@ -521,9 +567,9 @@ const recordInvoiceInDailyReports = async (amount: number, paidAmount: number, e
   }
 };
 
-// Sync whole database helper for initial transition
 export const syncInvoicesToFirestore = async (invoices: any[]): Promise<void> => {
   for (const inv of invoices) {
+    if (inv.isDeleted) continue;
     const billData: Omit<Bill, 'id'> = {
       customerName: inv.customerName,
       amount: inv.totalAmount,
@@ -533,6 +579,89 @@ export const syncInvoicesToFirestore = async (invoices: any[]): Promise<void> =>
       invoiceNumber: inv.invoiceNumber
     };
     await addBillToFirestore(billData, inv.id);
+  }
+  await rebuildDailyReportsFromActiveInvoices(invoices.filter(i => !i.isDeleted));
+};
+
+export const rebuildDailyReportsFromActiveInvoices = async (activeInvoices: any[]): Promise<void> => {
+  if (isFirebaseConfigured) {
+    try {
+      // 1. Fetch all existing dailyReport docs to clear them
+      const reportsCol = collection(db, 'dailyReports');
+      const reportsSnap = await getDocs(reportsCol);
+      
+      // We can use a batch delete to clear all daily report docs
+      const batch = writeBatch(db);
+      reportsSnap.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+
+      // 2. Group active invoices by date
+      const dailyMap: { [key: string]: { revenue: number; invoices: number } } = {};
+      activeInvoices.forEach(inv => {
+        const dateStr = inv.createdAt ? inv.createdAt.split('T')[0] : new Date().toISOString().split('T')[0];
+        if (!dailyMap[dateStr]) {
+          dailyMap[dateStr] = { revenue: 0, invoices: 0 };
+        }
+        dailyMap[dateStr].revenue += inv.totalAmount;
+        dailyMap[dateStr].invoices += 1;
+      });
+
+      // 3. Group expenses by date (from active purchases/expenses)
+      const expensesCol = collection(db, 'expenses');
+      const expensesSnap = await getDocs(expensesCol);
+      const expensesMap: { [key: string]: number } = {};
+      expensesSnap.forEach((docSnap) => {
+        const data = docSnap.data();
+        const dateStr = data.expenseDate || data.date || '';
+        if (dateStr) {
+          expensesMap[dateStr] = (expensesMap[dateStr] || 0) + (data.expenseAmount || data.amount || 0);
+        }
+      });
+
+      // 4. Create correct clean daily report documents in Firestore
+      const allDates = new Set([...Object.keys(dailyMap), ...Object.keys(expensesMap)]);
+      
+      for (const dateStr of allDates) {
+        const billData = dailyMap[dateStr] || { revenue: 0, invoices: 0 };
+        const expenseAmount = expensesMap[dateStr] || 0;
+        
+        await setDoc(doc(db, 'dailyReports', dateStr), {
+          revenue: billData.revenue,
+          expenses: expenseAmount,
+          profit: billData.revenue - expenseAmount,
+          invoices: billData.invoices,
+          date: dateStr
+        });
+      }
+    } catch (err) {
+      console.error("Error rebuilding daily reports:", err);
+    }
+  } else {
+    // Mock Mode
+    const reports: DailyReportData[] = [];
+    const dailyMap: { [key: string]: { revenue: number; invoices: number } } = {};
+    activeInvoices.forEach(inv => {
+      const dateStr = inv.createdAt ? inv.createdAt.split('T')[0] : new Date().toISOString().split('T')[0];
+      if (!dailyMap[dateStr]) {
+        dailyMap[dateStr] = { revenue: 0, invoices: 0 };
+      }
+      dailyMap[dateStr].revenue += inv.totalAmount;
+      dailyMap[dateStr].invoices += 1;
+    });
+
+    Object.keys(dailyMap).forEach((dateStr) => {
+      const billData = dailyMap[dateStr];
+      reports.push({
+        date: dateStr,
+        revenue: billData.revenue,
+        expenses: 0,
+        profit: billData.revenue,
+        invoices: billData.invoices
+      });
+    });
+    setLocalCollection(MOCK_DAILY_REPORTS_KEY, reports);
   }
 };
 

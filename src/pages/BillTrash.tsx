@@ -1,7 +1,7 @@
 import { useInvoices } from '@/contexts/InvoiceContext';
 import { cn } from '@/lib/utils';
 import { Trash2, Eye, RefreshCw, X, ShieldAlert, BadgeCheck, User, Phone, Printer } from 'lucide-react';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import InvoicePreview from '@/components/InvoicePreview';
 import type { Invoice } from '@/contexts/InvoiceContext';
 import { toast } from 'sonner';
@@ -139,97 +139,111 @@ export default function BillTrash() {
                   <th className="text-right px-5 py-4 font-black text-[10px] uppercase tracking-widest text-muted-foreground">Amount</th>
                   <th className="text-right px-5 py-4 font-black text-[10px] uppercase tracking-widest text-muted-foreground text-emerald-600">Paid</th>
                   <th className="text-right px-5 py-4 font-black text-[10px] uppercase tracking-widest text-muted-foreground text-rose-500">Remaining</th>
-                  <th className="text-center px-5 py-4 font-black text-[10px] uppercase tracking-widest text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredBills.map(inv => {
                   const paidAmount = inv.totalAmount - (inv.remainingAmount || 0);
                   return (
-                    <tr key={inv.id} className="border-b border-border/30 last:border-0 hover:bg-muted/30 transition-all group">
-                      <td className="px-5 py-3">
-                        <span className="font-black text-slate-700">{inv.invoiceNumber}</span>
-                      </td>
-                      <td className="px-5 py-3 tabular-nums text-muted-foreground">
-                        <div className="font-semibold text-slate-700">
-                          Orig: {new Date(inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
-                        <div className="text-[11px] text-rose-500 font-medium mt-0.5">
-                          Del: {inv.deletedAt 
-                            ? new Date(inv.deletedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                            : 'N/A'
-                          }
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="font-medium text-slate-800">{inv.customerName}</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5">
-                            <User className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="font-semibold text-sm text-slate-700">{inv.createdBy || 'System'}</span>
+                    <Fragment key={inv.id}>
+                      <tr className="hover:bg-muted/20 transition-all group">
+                        <td className="px-5 py-4">
+                          <span className="font-black text-slate-700">{inv.invoiceNumber}</span>
+                        </td>
+                        <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                          <div className="font-semibold text-slate-700">
+                            Orig: {new Date(inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                           </div>
-                          {inv.createdByRole && (
-                            <span className={cn(
-                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black w-fit',
-                              inv.createdByRole === 'Super Admin'
-                                ? 'bg-pink-100 text-pink-700 border border-pink-200'
-                                : 'bg-violet-100 text-violet-700 border border-violet-200'
-                            )}>
-                              <BadgeCheck className="w-2.5 h-2.5" />
-                              {inv.createdByRole}
-                            </span>
-                          )}
-                          {inv.createdByPhone && (
-                            <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
-                              <Phone className="w-3 h-3" />
-                              {inv.createdByPhone}
+                          <div className="text-[11px] text-rose-500 font-medium mt-0.5">
+                            Del: {inv.deletedAt 
+                              ? new Date(inv.deletedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                              : 'N/A'
+                            }
+                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="font-medium text-slate-800">{inv.customerName}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <User className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="font-semibold text-sm text-slate-700">{inv.createdBy || 'System'}</span>
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3 text-right font-black text-slate-800 tabular-nums">
-                        {fmt(inv.totalAmount)}
-                      </td>
-                      <td className="px-5 py-3 text-right font-bold tabular-nums text-emerald-600">
-                        {fmt(paidAmount)}
-                      </td>
-                      <td className="px-5 py-3 text-right font-bold tabular-nums text-rose-500">
-                        {fmt(inv.remainingAmount || 0)}
-                      </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        {/* View Bill */}
-                        <button
-                          onClick={() => { setPreview(inv); setAutoPrint(false); }}
-                          className="p-2 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white transition-all border border-violet-100 shadow-sm"
-                          title="View Bill Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                            {inv.createdByRole && (
+                              <span className={cn(
+                                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black w-fit',
+                                inv.createdByRole === 'Super Admin'
+                                  ? 'bg-pink-100 text-pink-700 border border-pink-200'
+                                  : 'bg-violet-100 text-violet-700 border border-violet-200'
+                              )}>
+                                <BadgeCheck className="w-2.5 h-2.5" />
+                                {inv.createdByRole}
+                              </span>
+                            )}
+                            {inv.createdByPhone && (
+                              <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                                <Phone className="w-3 h-3" />
+                                {inv.createdByPhone}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-right font-black text-slate-800 tabular-nums">
+                          {fmt(inv.totalAmount)}
+                        </td>
+                        <td className="px-5 py-4 text-right font-bold tabular-nums text-emerald-600">
+                          {fmt(paidAmount)}
+                        </td>
+                        <td className="px-5 py-4 text-right font-bold tabular-nums text-rose-500">
+                          {fmt(inv.remainingAmount || 0)}
+                        </td>
+                      </tr>
+                      <tr className="border-b border-border/30 last:border-0 bg-muted/5 hover:bg-muted/10 transition-all duration-300">
+                        <td colSpan={7} className="px-5 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black uppercase tracking-wider text-[9px] px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600">
+                                Trash Actions
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* View Bill */}
+                              <button
+                                onClick={() => { setPreview(inv); setAutoPrint(false); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 font-bold transition-all border border-violet-500/20 shadow-sm hover:scale-[1.02] active:scale-[0.98] outline-none"
+                                title="View Bill Details"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>View Details</span>
+                              </button>
 
-                        {/* Recovery / Restore */}
-                        <button
-                          onClick={() => handleRestore(inv.id, inv.invoiceNumber)}
-                          className="p-2 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 shadow-sm flex items-center gap-1 font-bold text-xs"
-                          title="Recover Bill"
-                        >
-                          <RefreshCw className="w-4 h-4 animate-spin-slow" />
-                          <span>Recover</span>
-                        </button>
+                              {/* Recovery / Restore */}
+                              <button
+                                onClick={() => handleRestore(inv.id, inv.invoiceNumber)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold transition-all border border-emerald-500/20 shadow-sm hover:scale-[1.02] active:scale-[0.98] outline-none"
+                                title="Recover Bill"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin-slow" />
+                                <span>Recover Bill</span>
+                              </button>
 
-                        {/* Delete Permanently */}
-                        <button
-                          onClick={() => handlePermanentDelete(inv.id, inv.invoiceNumber)}
-                          className="p-2 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all border border-rose-100 shadow-sm"
-                          title="Permanently Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                    </tr>
+                              <div className="w-px h-5 bg-border mx-1" />
+
+                              {/* Delete Permanently */}
+                              <button
+                                onClick={() => handlePermanentDelete(inv.id, inv.invoiceNumber)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-bold transition-all border border-rose-500/20 shadow-sm hover:scale-[1.02] active:scale-[0.98] outline-none"
+                                title="Permanently Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete Permanently</span>
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>

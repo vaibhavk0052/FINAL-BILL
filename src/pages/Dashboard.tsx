@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInvoices } from '@/contexts/InvoiceContext';
 import MetricCard from '@/components/MetricCard';
+import { listenToExpenses, updateDashboardAnalytics } from '@/firebase/firestore';
 import {
-  IndianRupee, FileText, TrendingUp, Wallet, ArrowUpRight,
-  CheckCircle2, Clock, ShieldCheck, Activity, User, AlertCircle
+  IndianRupee, FileText, FilePlus, FileSpreadsheet, TrendingUp, Wallet, ArrowUpRight,
+  CheckCircle2, Clock, ShieldCheck, Activity, User, AlertCircle, Package
 } from 'lucide-react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 
@@ -26,12 +27,12 @@ export default function Dashboard() {
 
   const [localExpenses, setLocalExpenses] = useState<Expense[]>([]);
 
-  // Load real-time expenses from local storage on component mount/update
+  // Load real-time expenses from Firestore on component mount
   useEffect(() => {
-    const saved = localStorage.getItem('billing_expenses');
-    if (saved) {
-      setLocalExpenses(JSON.parse(saved));
-    }
+    const unsubscribe = listenToExpenses((data) => {
+      setLocalExpenses(data);
+    });
+    return unsubscribe;
   }, []);
 
   // Filter out private invoices from the dashboard (hidden unless they are public)
@@ -45,13 +46,25 @@ export default function Dashboard() {
   const netProfit = totalRevenue - totalExpenses;
   const totalInvoices = activeInvoices.length;
 
+  // Sync consolidated stats with Firestore analytics document
+  useEffect(() => {
+    updateDashboardAnalytics({
+      totalRevenue,
+      completedAmount,
+      pendingAmount,
+      totalExpenses,
+      totalInvoices,
+      netProfit
+    }).catch(err => console.error("Error updating analytics in Firestore:", err));
+  }, [totalRevenue, completedAmount, pendingAmount, totalExpenses, totalInvoices, netProfit]);
+
   // Format Daily Trend Data for Recharts dynamically based on actual dates
   const chartData = React.useMemo(() => {
     const dailyMap: { [key: string]: { Revenue: number; Expenses: number } } = {};
-    
+
     // Group active invoices by date (YYYY-MM-DD)
     activeInvoices.forEach(inv => {
-      const dateStr = inv.createdAt.split('T')[0];
+      const dateStr = (inv.createdAt && typeof inv.createdAt === 'string') ? inv.createdAt.split('T')[0] : new Date().toISOString().split('T')[0];
       if (!dailyMap[dateStr]) {
         dailyMap[dateStr] = { Revenue: 0, Expenses: 0 };
       }
@@ -160,7 +173,7 @@ export default function Dashboard() {
           icon={<Wallet className="w-5 h-5" />}
           accent="destructive"
           delay={120}
-          onClick={() => navigate('/purchase-history')}
+          onClick={() => navigate('/purchase-entry')}
         />
         <MetricCard
           title="Net Profit"
@@ -248,6 +261,22 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Quotation Quick Actions */}
+              <div className="grid grid-cols-2 gap-3 mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                <button
+                  onClick={() => navigate('/create-quotation')}
+                  className="py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider transition-all text-center shadow-sm"
+                >
+                  New Estimate
+                </button>
+                <button
+                  onClick={() => navigate('/quotations')}
+                  className="py-2.5 px-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] uppercase tracking-wider transition-all text-center border border-slate-200"
+                >
+                  View Estimates
+                </button>
+              </div>
+
               <div className="flow-root">
                 <ul className="-mb-8">
                   {activityLogs.map((log, logIdx) => (
@@ -259,8 +288,8 @@ export default function Dashboard() {
                         <div className="relative flex space-x-3">
                           <div>
                             <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white ${log.type === 'security' ? 'bg-amber-50 text-amber-600' :
-                                log.type === 'employee' ? 'bg-pink-50 text-pink-600' :
-                                  log.type === 'billing' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'
+                              log.type === 'employee' ? 'bg-pink-50 text-pink-600' :
+                                log.type === 'billing' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'
                               }`}>
                               <Activity className="w-4 h-4" />
                             </span>
@@ -283,44 +312,65 @@ export default function Dashboard() {
               </div>
             </div>
           ) : (
-            /* Admin View: Actions Shortcuts & Instructions */
-            <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 space-y-6">
+            /* ── Billing Manager Panel: Actions Panel ── */
+            <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-slate-100/80 shadow-[0_8px_30px_rgba(0,0,0,0.015)] p-6 md:p-8 relative overflow-hidden group">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-emerald-400 to-green-500" />
+              
               <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-105 duration-300">
                   <ShieldCheck className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-lg text-slate-800">Quick Actions</h2>
-                  <p className="text-xs text-slate-500">Billing Manager Panel</p>
+                  <h2 className="font-extrabold text-lg text-slate-800">Quick Shortcuts</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Manager Actions Panel</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              {/* Colorful & Beautiful Quick Actions Button Roster */}
+              <div className="grid grid-cols-1 gap-3.5 pt-6">
                 <button
                   onClick={() => navigate('/create-bill')}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-bold text-sm shadow-md shadow-pink-500/10 hover:shadow-pink-500/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-pink-500 via-rose-500 to-red-500 text-white font-bold text-sm shadow-md hover:shadow-pink-500/25 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95 duration-200"
                 >
+                  <FilePlus className="w-4 h-4" />
                   Create New Bill
                 </button>
                 <button
-                  onClick={() => navigate('/items')}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  onClick={() => navigate('/create-quotation')}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 text-white font-bold text-sm shadow-md hover:shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95 duration-200"
                 >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Create Quotation Estimate
+                </button>
+                <button
+                  onClick={() => navigate('/quotations')}
+                  className="w-full py-3 px-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 hover:text-slate-800 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95 duration-200"
+                >
+                  <FileText className="w-4 h-4 text-indigo-500" />
+                  View Quotations List
+                </button>
+                <button
+                  onClick={() => navigate('/items')}
+                  className="w-full py-3 px-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 hover:text-slate-800 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95 duration-200"
+                >
+                  <Package className="w-4 h-4 text-amber-500" />
                   Manage Item Inventory
                 </button>
                 <button
                   onClick={() => navigate('/add-expenses')}
-                  className="w-full py-3.5 px-4 rounded-2xl bg-white border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full py-3 px-4 rounded-2xl bg-white border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 hover:text-slate-800 transition-all flex items-center justify-center gap-2 hover:-translate-y-0.5 active:scale-95 duration-200"
                 >
+                  <IndianRupee className="w-4 h-4 text-emerald-500" />
                   Log Daily Expenses
                 </button>
               </div>
 
-              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 flex gap-3 text-slate-500">
+              {/* Informative Alert Notice */}
+              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4 mt-6 flex gap-3 text-slate-500">
                 <AlertCircle className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-                <div className="text-xs font-medium space-y-1">
-                  <p className="font-bold text-slate-700">Privilege Level Notice</p>
-                  <p>As a Billing Manager, you have access to create invoices, log expenses and track purchase records. Administrative tasks and payroll data are locked.</p>
+                <div className="text-xs font-semibold space-y-1">
+                  <p className="font-extrabold text-slate-700 uppercase tracking-wider text-[10px]">Privilege Level Notice</p>
+                  <p className="leading-relaxed">As an authorized Billing Manager, you can create bills, log daily business expenses and check item catalogs. Roster editing is locked.</p>
                 </div>
               </div>
             </div>
@@ -330,3 +380,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

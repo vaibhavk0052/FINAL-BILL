@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { addBillToFirestore, deleteBillFromFirestore, syncInvoicesToFirestore } from '@/lib/firebase';
+import {
+  addBillToFirestore,
+  deleteBillFromFirestore,
+  syncInvoicesToFirestore,
+  listenToBills,
+  softDeleteBillInFirestore,
+  restoreBillInFirestore
+} from '@/firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface InvoiceItem {
   name: string;
   quantity: number;
   price: number;
+  description?: string;
 }
 
 export interface PaymentEntry {
@@ -37,8 +46,12 @@ export interface Invoice {
   paymentStatus: 'completed' | 'pending';
   createdAt: string;
   isPrivate?: boolean;
+  isImp?: boolean;
   paymentHistory?: PaymentEntry[];
   isDelivered?: boolean;
+  isWorkDone?: boolean;
+  workDoneBy?: string;
+  workDoneAt?: string;
   createdBy?: string;
   createdByRole?: string;
   createdByPhone?: string;
@@ -104,6 +117,9 @@ const sampleInvoices: Invoice[] = [
 ];
 
 export function InvoiceProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'superadmin';
+
   const [allInvoices, setAllInvoices] = useState<Invoice[]>(() => {
     const saved = localStorage.getItem('billing_invoices');
     if (saved) {
@@ -111,10 +127,19 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       // Filter out initial mock/sample invoice records (IDs '1', '2', '3', '4')
       const filtered = parsed.filter(inv => inv.id !== '1' && inv.id !== '2' && inv.id !== '3' && inv.id !== '4');
       const migrated = filtered.map(inv => {
-        // Enforce the 'INV XXX' format (extract numeric part, pad it, prefix with 'INV ')
-        const cleanNum = inv.invoiceNumber.replace(/[^\d]/g, '');
+        // Enforce formatted layout while preserving existing custom prefix (e.g. JUN, MAY, INV)
+        const parts = inv.invoiceNumber.trim().split(/\s+/);
+        let prefix = 'INV';
+        let numStr = inv.invoiceNumber;
+        if (parts.length > 1) {
+          prefix = parts[0];
+          numStr = parts[1];
+        }
+        const cleanNum = numStr.replace(/[^\d]/g, '');
         const numVal = parseInt(cleanNum);
-        const formatted = isNaN(numVal) ? inv.invoiceNumber : `INV ${String(numVal).padStart(3, '0')}`;
+        const formatted = isNaN(numVal)
+          ? inv.invoiceNumber
+          : `${prefix} ${String(numVal).padStart(3, '0')}`;
         return {
           ...inv,
           invoiceNumber: formatted,
@@ -129,9 +154,117 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('billing_invoices', JSON.stringify(allInvoices));
   }, [allInvoices]);
 
+  // Real-time listener for Firestore bills
   useEffect(() => {
-    syncInvoicesToFirestore(allInvoices).catch(err => console.error("Error syncing initial invoices:", err));
-  }, []);
+    if (!user) return;
+
+    const unsubscribe = listenToBills((firestoreBills) => {
+      const parsedInvoices: Invoice[] = firestoreBills.map((fb: any) => {
+        if (!fb.items) {
+          return {
+            id: fb.id,
+            invoiceNumber: fb.invoiceNumber || 'INV 000',
+            customerName: fb.customerName || 'Walk-in Customer',
+            customerPhone: fb.customerPhone || '',
+            items: fb.items || [{ name: 'Billing Sale', quantity: 1, price: fb.amount }],
+            subtotal: fb.amount || 0,
+            discount: fb.discount || 0,
+            taxableAmount: fb.amount || 0,
+            gstEnabled: fb.gstEnabled || false,
+            gstAmount: fb.gstAmount || 0,
+            totalAmount: fb.amount || 0,
+            cashAmount: fb.cashAmount || (fb.status === 'completed' ? fb.amount : 0),
+            onlineAmount: fb.onlineAmount || 0,
+            advanceAmount: fb.advanceAmount || 0,
+            advanceMethod: fb.advanceMethod || 'cash',
+            remainingAmount: fb.remainingAmount || (fb.status === 'completed' ? 0 : fb.amount),
+            paymentStatus: fb.status || fb.paymentStatus || 'completed',
+            createdAt: fb.createdAt || (fb.date ? `${fb.date}T12:00:00.000Z` : new Date().toISOString()),
+            createdBy: fb.createdBy || 'System',
+            createdByRole: fb.createdByRole || 'Admin',
+            isPrivate: fb.isPrivate || false,
+            isImp: fb.isImp || false,
+            isWorkDone: fb.isWorkDone || false,
+            workDoneBy: fb.workDoneBy || undefined,
+            workDoneAt: fb.workDoneAt || undefined,
+            isDeleted: fb.isDeleted || false,
+            deletedAt: fb.deletedAt || undefined
+          } as Invoice;
+        }
+
+        return {
+          id: fb.id,
+          invoiceNumber: fb.invoiceNumber,
+          customerName: fb.customerName,
+          customerPhone: fb.customerPhone,
+          customerEmail: fb.customerEmail,
+          description: fb.description,
+          items: fb.items,
+          subtotal: fb.subtotal,
+          discount: fb.discount,
+          taxableAmount: fb.taxableAmount,
+          gstEnabled: fb.gstEnabled,
+          gstAmount: fb.gstAmount,
+          totalAmount: fb.totalAmount,
+          cashAmount: fb.cashAmount,
+          onlineAmount: fb.onlineAmount,
+          advanceAmount: fb.advanceAmount,
+          advanceMethod: fb.advanceMethod,
+          remainingAmount: fb.remainingAmount,
+          paymentStatus: fb.paymentStatus,
+          createdAt: fb.createdAt,
+          isPrivate: fb.isPrivate,
+          isImp: fb.isImp || false,
+          paymentHistory: fb.paymentHistory,
+          isDelivered: fb.isDelivered,
+          isWorkDone: fb.isWorkDone || false,
+          workDoneBy: fb.workDoneBy,
+          workDoneAt: fb.workDoneAt,
+          createdBy: fb.createdBy,
+          createdByRole: fb.createdByRole,
+          createdByPhone: fb.createdByPhone,
+          isDeleted: fb.isDeleted || false,
+          deletedAt: fb.deletedAt
+        } as Invoice;
+      });
+
+      setAllInvoices((prev) => {
+        // Remove any invoice from local state that is no longer in Firestore (deleted from database)
+        const firestoreIds = new Set(parsedInvoices.map(i => i.id));
+        let merged = prev.filter(localInv => firestoreIds.has(localInv.id));
+
+        parsedInvoices.forEach((fbInv) => {
+          const shouldInclude = isSuperAdmin || !fbInv.isPrivate;
+
+          if (shouldInclude) {
+            const index = merged.findIndex((i) => i.id === fbInv.id);
+            if (index !== -1) {
+              merged[index] = fbInv;
+            } else {
+              merged.unshift(fbInv);
+            }
+          } else {
+            merged = merged.filter((i) => i.id !== fbInv.id);
+          }
+        });
+
+        const seen = new Set();
+        return merged.filter((i) => {
+          if (seen.has(i.id)) return false;
+          seen.add(i.id);
+          return true;
+        });
+      });
+    });
+
+    return unsubscribe;
+  }, [user, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!user) return;
+    const activeInvoices = allInvoices.filter(inv => !inv.isDeleted);
+    syncInvoicesToFirestore(activeInvoices).catch(err => console.error("Error syncing initial invoices:", err));
+  }, [user]);
 
   // Filter active vs deleted invoices
   const invoices = React.useMemo(() => allInvoices.filter(inv => !inv.isDeleted), [allInvoices]);
@@ -139,26 +272,12 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   const addInvoice = useCallback((invoice: Invoice) => {
     setAllInvoices(prev => [invoice, ...prev]);
-    addBillToFirestore({
-      customerName: invoice.customerName,
-      amount: invoice.totalAmount,
-      status: invoice.paymentStatus,
-      date: invoice.createdAt.split('T')[0],
-      createdBy: invoice.createdBy || 'System',
-      invoiceNumber: invoice.invoiceNumber
-    }, invoice.id).catch(err => console.error("Error syncing new bill to Firestore:", err));
+    addBillToFirestore(invoice, invoice.id).catch(err => console.error("Error syncing new bill to Firestore:", err));
   }, []);
 
   const updateInvoice = useCallback((updatedInvoice: Invoice) => {
     setAllInvoices(prev => prev.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv));
-    addBillToFirestore({
-      customerName: updatedInvoice.customerName,
-      amount: updatedInvoice.totalAmount,
-      status: updatedInvoice.paymentStatus,
-      date: updatedInvoice.createdAt.split('T')[0],
-      createdBy: updatedInvoice.createdBy || 'System',
-      invoiceNumber: updatedInvoice.invoiceNumber
-    }, updatedInvoice.id).catch(err => console.error("Error syncing updated bill to Firestore:", err));
+    addBillToFirestore(updatedInvoice, updatedInvoice.id).catch(err => console.error("Error syncing updated bill to Firestore:", err));
   }, []);
 
   const updateInvoiceStatus = useCallback((id: string, status: 'completed' | 'pending') => {
@@ -166,14 +285,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       const updated = prev.map(inv => inv.id === id ? { ...inv, paymentStatus: status } : inv);
       const inv = updated.find(i => i.id === id);
       if (inv) {
-        addBillToFirestore({
-          customerName: inv.customerName,
-          amount: inv.totalAmount,
-          status: inv.paymentStatus,
-          date: inv.createdAt.split('T')[0],
-          createdBy: inv.createdBy || 'System',
-          invoiceNumber: inv.invoiceNumber
-        }, inv.id).catch(err => console.error("Error syncing invoice status to Firestore:", err));
+        addBillToFirestore(inv, inv.id).catch(err => console.error("Error syncing invoice status to Firestore:", err));
       }
       return updated;
     });
@@ -182,11 +294,25 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   // Soft Delete
   const deleteInvoice = useCallback((id: string) => {
     setAllInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, isDeleted: true, deletedAt: new Date().toISOString() } : inv));
-  }, []);
+    
+    const roleStr = user?.role === 'superadmin' 
+      ? 'Super Admin' 
+      : user?.role === 'admin' 
+        ? 'Admin' 
+        : 'Staff';
+
+    softDeleteBillInFirestore(
+      id,
+      user?.name || 'System',
+      roleStr,
+      user?.phone || ''
+    ).catch(err => console.error("Error soft-deleting bill in Firestore:", err));
+  }, [user]);
 
   // Restore Soft-Deleted Bill
   const restoreInvoice = useCallback((id: string) => {
     setAllInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, isDeleted: false, deletedAt: undefined } : inv));
+    restoreBillInFirestore(id).catch(err => console.error("Error restoring bill in Firestore:", err));
   }, []);
 
   // Hard Delete

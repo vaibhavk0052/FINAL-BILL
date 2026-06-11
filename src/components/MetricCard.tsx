@@ -29,7 +29,7 @@ export default function MetricCard({ title, value, icon, accent = 'primary', del
       <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none transform translate-x-4 -translate-y-4 group-hover:scale-110 group-hover:rotate-12 transition-transform duration-500">
         <div className="w-24 h-24">{icon}</div>
       </div>
-      
+
       <div className="flex items-start justify-between relative z-10">
         <div>
           <p className="text-sm font-medium text-slate-500 mb-2">{title}</p>

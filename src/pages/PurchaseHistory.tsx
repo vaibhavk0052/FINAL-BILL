@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import { usePurchases } from '@/contexts/PurchaseContext';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
 export default function PurchaseHistory() {
-  const { purchases } = usePurchases();
+  const { purchases, deletePurchase } = usePurchases();
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredPurchases = purchases.filter(p => 
     p.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.itemName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('Are you sure you want to delete this purchase entry? This will also remove the corresponding expense record.')) {
+      deletePurchase(id);
+      toast.success('Purchase deleted successfully');
+    }
+  };
 
   return (
     <div>
@@ -41,12 +49,13 @@ export default function PurchaseHistory() {
               <th className="text-left px-5 py-4 font-medium text-muted-foreground">Item Name</th>
               <th className="text-center px-5 py-4 font-medium text-muted-foreground">Qty</th>
               <th className="text-right px-5 py-4 font-medium text-muted-foreground">Total Amount</th>
+              <th className="text-center px-5 py-4 font-medium text-muted-foreground w-20">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredPurchases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">No purchases found.</td>
+                <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">No purchases found.</td>
               </tr>
             ) : (
               filteredPurchases.map(p => (
@@ -56,6 +65,15 @@ export default function PurchaseHistory() {
                   <td className="px-5 py-3 text-muted-foreground">{p.itemName}</td>
                   <td className="px-5 py-3 text-center">{p.quantity}</td>
                   <td className="px-5 py-3 text-right font-medium tabular-nums text-foreground">{fmt(p.totalAmount)}</td>
+                  <td className="px-5 py-3 text-center">
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                      title="Delete Purchase Entry"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}

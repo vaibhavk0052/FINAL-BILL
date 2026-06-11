@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if user has one of the allowed roles in their 'users' document
+    function hasRole(allowedRoles) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in allowedRoles;
+    }
+
+    // ── 1. USERS COLLECTION ──
+    // Users can read/write their own profile during login & session setup.
+    // Superadmin and admin can read/write all user profiles.
+    match /users/{uid} {
+      allow read, write: if isAuthenticated() && (request.auth.uid == uid || hasRole(['superadmin', 'admin']));
+    }
+
+    // ── 2. EMPLOYEES COLLECTION ──
+    // Only superadmin and admin can view/manage employees.
+    match /employees/{employeeId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 3. DASHBOARD COLLECTION ──
+    // Only superadmin and admin can view/manage dashboard metrics.
+    match /dashboard/{docId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 4. PURCHASE ENTRY COLLECTION ──
+    // Only superadmin and admin can view/manage raw purchase entries.
+    match /purchaseEntry/{purchaseId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 5. PURCHASE HISTORY COLLECTION ──
+    // Only superadmin and admin can view/manage purchase history logs.
+    match /purchaseHistory/{historyId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 6. SALES HISTORY COLLECTION ──
+    // Only superadmin and admin can view/manage sales history.
+    match /salesHistory/{saleId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 7. BILLS COLLECTION ──
+    // Only superadmin and admin can view/manage invoice bills.
+    match /bills/{billId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 8. DAILY REPORTS COLLECTION ──
+    // Only superadmin and admin can view/manage daily report metrics.
+    match /dailyReports/{reportId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 9. MANAGE ITEMS COLLECTION ──
+    // Only superadmin and admin can manage the service/product items catalog.
+    match /manageItems/{itemId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+
+    // ── 10. EXPENSES COLLECTION ──
+    // Only superadmin and admin can view/manage business operational expenses.
+    match /expenses/{expenseId} {
+      allow read, write: if hasRole(['superadmin', 'admin']);
+    }
+  }
+}

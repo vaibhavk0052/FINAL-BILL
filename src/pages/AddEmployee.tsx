@@ -3,9 +3,9 @@ import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { 
   UserPlus, Mail, Lock, Phone, CircleDollarSign, CheckCircle2, 
-  XCircle, UserCheck, ShieldAlert, ArrowRight, ClipboardList, Trash2
+  XCircle, UserCheck, ShieldAlert, ArrowRight, ClipboardList, Trash2, Edit2
 } from 'lucide-react';
-import { getEmployees, addEmployee, Employee } from '@/lib/firebase';
+import { getEmployees, addEmployee, deleteEmployee, updateEmployee, Employee } from '@/firebase/firestore';
 
 export default function AddEmployee() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -13,6 +13,7 @@ export default function AddEmployee() {
   const [role, setRole] = useState('Staff');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // Subscribe to employees real-time feed
   useEffect(() => {
@@ -35,6 +36,35 @@ export default function AddEmployee() {
     return () => unsubscribe();
   }, []);
 
+  const handleEditClick = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setName(emp.name);
+    setPhone(emp.phone);
+    setRole(emp.role);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEmployee(null);
+    setName('');
+    setPhone('');
+    setRole('Staff');
+  };
+
+  const handleDeleteClick = async (id: string, empName: string) => {
+    if (window.confirm(`Are you sure you want to delete employee: ${empName}?`)) {
+      try {
+        await deleteEmployee(id);
+        toast.success(`Successfully deleted employee: ${empName}`);
+        if (editingEmployee?.id === id) {
+          handleCancelEdit();
+        }
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Failed to delete employee");
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -50,18 +80,26 @@ export default function AddEmployee() {
 
     setLoading(true);
     try {
-      const generatedEmail = `${name.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@photobill.com`;
-      const defaultPassword = '123456';
-
-      await addEmployee({
-        name: name.trim(),
-        email: generatedEmail,
-        role,
-        phone: phone.trim(),
-        status: 'Active'
-      }, defaultPassword);
-
-      toast.success(`Successfully added employee: ${name}`);
+      if (editingEmployee) {
+        // Edit flow
+        await updateEmployee(editingEmployee.id, {
+          name: name.trim(),
+          phone: phone.trim(),
+          role,
+          status: 'Active'
+        });
+        toast.success(`Successfully updated employee: ${name}`);
+        setEditingEmployee(null);
+      } else {
+        // Add flow
+        await addEmployee({
+          name: name.trim(),
+          role,
+          phone: phone.trim(),
+          status: 'Active'
+        });
+        toast.success(`Successfully added employee: ${name}`);
+      }
       
       // Reset form
       setName('');
@@ -69,7 +107,7 @@ export default function AddEmployee() {
       setRole('Staff');
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to create employee user");
+      toast.error(err.message || "Failed to submit employee data");
     } finally {
       setLoading(false);
     }
@@ -118,8 +156,12 @@ export default function AddEmployee() {
               <UserPlus className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-lg text-slate-800">Add New Employee</h2>
-              <p className="text-xs text-slate-500">Creates credentials & profile</p>
+              <h2 className="font-bold text-lg text-slate-800">
+                {editingEmployee ? 'Edit Employee' : 'Add New Employee'}
+              </h2>
+              <p className="text-xs text-slate-500">
+                {editingEmployee ? 'Update roster profile details' : 'Creates credentials & profile'}
+              </p>
             </div>
           </div>
 
@@ -170,10 +212,7 @@ export default function AddEmployee() {
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white/50 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500/40 focus:border-pink-500 transition-all"
               >
                 <option value="Staff">Staff</option>
-                <option value="Admin">Admin</option>
-                <option value="Billing Manager">Billing Manager</option>
-                <option value="Manager">Manager</option>
-                <option value="Accountant">Accountant</option>
+                <option value="Owner">Owner</option>
               </select>
             </div>
 
@@ -187,15 +226,27 @@ export default function AddEmployee() {
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating Account...
+                  {editingEmployee ? 'Updating...' : 'Adding...'}
                 </>
               ) : (
                 <>
-                  Create Employee Account
+                  {editingEmployee ? 'Update Details' : 'Create Employee Account'}
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </motion.button>
+
+            {editingEmployee && (
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                type="button"
+                onClick={handleCancelEdit}
+                className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs transition-all"
+              >
+                Cancel Edit
+              </motion.button>
+            )}
 
             {/* Info note */}
             <div className="mt-3 p-3 rounded-xl bg-violet-50 border border-violet-200/60">
@@ -235,6 +286,7 @@ export default function AddEmployee() {
                     <th className="pb-3 pl-2">Employee Name</th>
                     <th className="pb-3">Role</th>
                     <th className="pb-3 pr-2 text-right">Phone</th>
+                    <th className="pb-3 text-right pr-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-sm">
@@ -243,7 +295,7 @@ export default function AddEmployee() {
                       <td className="py-4 pl-2 font-semibold text-slate-800">{emp.name}</td>
                       <td className="py-4">
                         <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-bold ${
-                          emp.role.includes('Admin') || emp.role.includes('Manager')
+                          emp.role === 'Owner'
                             ? 'bg-violet-50 text-violet-600 border border-violet-100' 
                             : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}>
@@ -251,6 +303,24 @@ export default function AddEmployee() {
                         </span>
                       </td>
                       <td className="py-4 pr-2 text-right text-slate-600 font-medium">{emp.phone}</td>
+                      <td className="py-4 text-right pr-2">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => handleEditClick(emp)}
+                            className="p-1.5 text-slate-400 hover:text-pink-600 hover:bg-pink-50 rounded-lg transition-colors"
+                            title="Edit Employee"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(emp.id, emp.name)}
+                            className="p-1.5 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                            title="Delete Employee"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

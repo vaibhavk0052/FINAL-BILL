@@ -28,10 +28,20 @@ export default function Login() {
       if (success) {
         navigate('/', { replace: true });
       } else {
-        setError('Invalid credentials');
+        setError('Email ID and Password does not match');
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid User ID or Password');
+      const errMsg = err.message || '';
+      if (
+        errMsg.includes('auth/') || 
+        errMsg.includes('credential') || 
+        errMsg.includes('password') || 
+        errMsg.includes('user-not-found')
+      ) {
+        setError('Email ID and Password does not match');
+      } else {
+        setError(err.message || 'Email ID and Password does not match');
+      }
     } finally {
       setLoading(false);
     }
@@ -39,9 +49,9 @@ export default function Login() {
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { 
+    visible: {
       opacity: 1,
-      transition: { 
+      transition: {
         staggerChildren: 0.1,
         delayChildren: 0.2
       }
@@ -50,7 +60,7 @@ export default function Login() {
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: { 
+    visible: {
       y: 0, opacity: 1,
       transition: { type: "spring", stiffness: 300, damping: 24 }
     }
@@ -59,33 +69,33 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-white to-green-50 p-4 relative overflow-hidden">
       {/* Animated Background Elements */}
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           scale: [1, 1.2, 1],
           rotate: [0, 90, 0],
-          opacity: [0.3, 0.5, 0.3] 
+          opacity: [0.3, 0.5, 0.3]
         }}
         transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-        className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-primary/20 blur-[100px]" 
+        className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-primary/20 blur-[100px]"
       />
-      <motion.div 
-        animate={{ 
+      <motion.div
+        animate={{
           scale: [1, 1.5, 1],
           rotate: [0, -90, 0],
-          opacity: [0.3, 0.6, 0.3] 
+          opacity: [0.3, 0.6, 0.3]
         }}
         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-secondary/40 blur-[100px]" 
+        className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-secondary/40 blur-[100px]"
       />
 
-      <motion.div 
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
         className="w-full max-w-md relative z-10"
       >
         <motion.div variants={itemVariants} className="text-center mb-8">
-          <motion.div 
+          <motion.div
             whileHover={{ scale: 1.1, rotate: 5 }}
             whileTap={{ scale: 0.95 }}
             className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-primary to-accent shadow-lg mb-4"
@@ -98,13 +108,13 @@ export default function Login() {
           <p className="text-sm text-muted-foreground mt-2 font-medium">Sign in to manage your billing beautifully</p>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           variants={itemVariants}
           className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/40"
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             <motion.div variants={itemVariants}>
-              <label className="block text-sm font-semibold text-foreground/80 mb-2">Email / User ID</label>
+              <label className="block text-sm font-semibold text-foreground/80 mb-2">Email</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors">
                   <User className="w-5 h-5" />
@@ -114,7 +124,7 @@ export default function Login() {
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 rounded-xl border border-input/50 bg-white/50 text-foreground text-sm placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary focus:bg-white transition-all duration-300"
-                  placeholder="Enter email or 'superadmin'/'admin'"
+                  placeholder="Enter email"
                 />
               </div>
             </motion.div>
@@ -143,7 +153,7 @@ export default function Login() {
             </motion.div>
 
             {error && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0, y: -10 }}
                 animate={{ opacity: 1, height: 'auto', y: 0 }}
                 className="text-sm font-medium text-destructive bg-destructive/10 rounded-xl px-4 py-3 border border-destructive/20"
@@ -162,8 +172,8 @@ export default function Login() {
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <motion.div 
-                    animate={{ rotate: 360 }} 
+                  <motion.div
+                    animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
                     className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
                   />
@@ -175,10 +185,10 @@ export default function Login() {
 
           <motion.div variants={itemVariants} className="mt-8 pt-6 border-t border-border/50 space-y-2">
             <p className="text-xs text-muted-foreground text-center font-medium">
-              Super Admin: <span className="text-primary font-bold">superadmin@photobill.com</span> / <span className="text-primary font-bold">123456</span>
+              <span className="text-primary font-bold"></span> <span className="text-primary font-bold"></span>
             </p>
             <p className="text-xs text-muted-foreground text-center font-medium">
-              Admin / Billing Manager: <span className="text-primary font-bold">admin@photobill.com</span> / <span className="text-primary font-bold">123456</span>
+              <span className="text-primary font-bold"></span> <span className="text-primary font-bold"></span>
             </p>
           </motion.div>
         </motion.div>
