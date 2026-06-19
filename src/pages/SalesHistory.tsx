@@ -1,18 +1,27 @@
 import { useState, Fragment, useEffect } from 'react';
-import { useInvoices, type Invoice } from '@/contexts/InvoiceContext';
-import { FileText, Pencil, Trash2, CheckCircle, Package, Search, X, Star, MessageSquare, Send, Check, RotateCcw } from 'lucide-react';
+import { useInvoices, type Invoice, INVOICE_CATEGORIES, type InvoiceCategory } from '@/contexts/InvoiceContext';
+import { FileText, Pencil, Trash2, CheckCircle, Package, Search, X, Star, MessageSquare, Send, Check, RotateCcw, Eye, Tags } from 'lucide-react';
+import InvoicePreview from '@/components/InvoicePreview';
 import { toast } from 'sonner';
 import { getEmployees, type Employee } from '@/firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
+const CAT_CONFIG: Record<InvoiceCategory, { emoji: string; color: string; border: string; bg: string }> = {
+  'ID Photos':       { emoji: '🪪', color: 'text-blue-600',    border: 'border-blue-200 dark:border-blue-800/40',    bg: 'bg-blue-50 dark:bg-blue-950/20' },
+  'Studio Shoots':   { emoji: '📸', color: 'text-violet-600',  border: 'border-violet-200 dark:border-violet-800/40',  bg: 'bg-violet-50 dark:bg-violet-950/20' },
+  'Events':          { emoji: '🎉', color: 'text-emerald-600', border: 'border-emerald-200 dark:border-emerald-800/40', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+  'Frames & Prints': { emoji: '🖼️', color: 'text-amber-600',  border: 'border-amber-200 dark:border-amber-800/40',  bg: 'bg-amber-50 dark:bg-amber-950/20' },
+};
+
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0 });
 
 export default function SalesHistory() {
   const { invoices, updateInvoice, updateInvoiceStatus, deleteInvoice } = useInvoices();
   const { user } = useAuth();
-  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'vip'>('all');
+  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'vip' | 'category'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<InvoiceCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
@@ -22,6 +31,7 @@ export default function SalesHistory() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkReminderOpen, setBulkReminderOpen] = useState(false);
   const [sentIds, setSentIds] = useState<string[]>([]);
+  const [reminderPreview, setReminderPreview] = useState<Invoice | null>(null);
 
   useEffect(() => {
     let unsub = () => { };
@@ -52,7 +62,7 @@ export default function SalesHistory() {
 
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  const reminderInvoices = publicInvoices.filter(i => !i.isDelivered && new Date(i.createdAt) < oneWeekAgo);
+  const reminderInvoices = publicInvoices.filter(i => i.isWorkDone && !i.isDelivered && new Date(i.createdAt) < oneWeekAgo);
 
   const sendReminder = (inv: Invoice) => {
     if (!inv.customerPhone) {
@@ -60,10 +70,24 @@ export default function SalesHistory() {
       return;
     }
 
-    const dateStr = new Date(inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    const pendingStr = (inv.remainingAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 });
+    const text = `SACHIN GHONGADE PHOTO & FILMS 
 
-    const text = `*SACHIN GHONGADE PHOTO & FILMS*\n\nHello ${inv.customerName},\n\nThis is a friendly reminder that your photos/videos are ready for delivery.\n\n *Invoice No:* ${inv.invoiceNumber}\n *Invoice Date:* ${dateStr}\n *Pending Amount:* ₹${pendingStr}\n\nWe have been waiting for your visit to complete the handover. Kindly collect your order at your earliest convenience.\n\nIf there is any pending payment, please clear it before collection.\n\nFor any assistance, feel free to contact us.\n\nThank you for choosing us for your special moments.\n\n *SACHIN GHONGADE PHOTO & FILMS*\n 9422427981 / 9130053081\n\n _Enriching Your Moments Through Creative Photography And Cinematic Storytelling._`;
+Hello ${inv.customerName},
+
+This is a friendly reminder that your photos/videos are ready for delivery. 
+
+We have been waiting for your visit to complete the handover. Kindly collect your order at your earliest convenience.
+
+If there is any pending payment, please clear it before collection.
+
+For any assistance, feel free to contact us.
+
+Thank you for choosing us for your special moments. 
+
+ SACHIN GHONGADE PHOTO & FILMS
+9130053081 / 9422427981
+
+ Enriching Your Moments Through Creative Photography And Cinematic Storytelling.`;
 
     const phone = inv.customerPhone.replace(/\D/g, '');
     const finalPhone = phone.length === 10 ? '91' + phone : phone;
@@ -226,15 +250,9 @@ export default function SalesHistory() {
                     className="px-2 py-0.5 text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 bg-transparent border-0 outline-none cursor-pointer"
                   >
                     <option value="" disabled className="text-slate-400 italic">Select Employee *</option>
-                    {user?.name && (
-                      <option value={user.name} className="text-slate-800 font-semibold">{user.name} (You)</option>
-                    )}
-                    {actualEmployees
-                      .filter(emp => emp.name !== user?.name)
-                      .map(emp => (
-                        <option key={emp.id} value={emp.name} className="text-slate-800 font-semibold">{emp.name}</option>
-                      ))
-                    }
+                    {actualEmployees.map(emp => (
+                      <option key={emp.id} value={emp.name} className="text-slate-800 font-semibold">{emp.name}</option>
+                    ))}
                   </select>
                   <button
                     onClick={() => setActiveWorkDoneInvoiceId(null)}
@@ -325,6 +343,9 @@ export default function SalesHistory() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder="Search customer or invoice..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -341,7 +362,7 @@ export default function SalesHistory() {
           </div>
 
           {/* Payment Status Filter */}
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-xl border border-border/30 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-xl border border-border/30 shrink-0 flex-wrap">
             {(['all', 'completed', 'pending', 'vip'] as const).map(f => (
               <button
                 key={f}
@@ -354,13 +375,96 @@ export default function SalesHistory() {
                 {f}
               </button>
             ))}
+            <button
+              onClick={() => setFilter('category')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                filter === 'category' ? 'bg-card text-foreground shadow-sm border border-border/30' : 'text-muted-foreground'
+              )}
+            >
+              <Tags className="w-3 h-3" /> Category
+            </button>
           </div>
         </div>
       </div>
 
       <div className="space-y-12 animate-fade-up" style={{ animationDelay: '100ms' }}>
+      {/* ── INLINE CATEGORY VIEW ── */}
+      {filter === 'category' && (
+        <div className="space-y-6 animate-fade-up pb-20" style={{ animationDelay: '100ms' }}>
+          <div className="flex items-center justify-between bg-card p-4 rounded-xl border border-border/50 shadow-sm">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Tags className="w-4 h-4" /> Category View
+            </h2>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as any)}
+              className="px-4 py-2 rounded-lg border border-input bg-background text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="All">All Categories</option>
+              {INVOICE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+          {(categoryFilter === 'All' ? INVOICE_CATEGORIES : [categoryFilter as InvoiceCategory]).map(cat => {
+            const cfg = CAT_CONFIG[cat];
+            const base = publicInvoices
+              .filter(i => i.category === cat)
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const pending   = base.filter(i => i.paymentStatus === 'pending');
+            const completed = base.filter(i => i.paymentStatus === 'completed');
+
+            const renderCatTable = (list: Invoice[], label: string, isP: boolean) => list.length > 0 && (
+              <div className="space-y-2">
+                <h3 className={cn('text-sm font-black uppercase tracking-wider flex items-center gap-2', isP ? 'text-destructive' : 'text-success')}>
+                  <div className={cn('w-1.5 h-5 rounded-full', isP ? 'bg-destructive' : 'bg-success')} /> {label} ({list.length})
+                </h3>
+                <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border/50 bg-muted/20">
+                        <th className="text-left px-5 py-3 font-medium text-[10px] uppercase text-muted-foreground">Invoice #</th>
+                        <th className="text-left px-5 py-3 font-medium text-[10px] uppercase text-muted-foreground">Customer</th>
+                        <th className="text-right px-5 py-3 font-medium text-[10px] uppercase text-muted-foreground">Date</th>
+                        <th className="text-right px-5 py-3 font-medium text-[10px] uppercase text-muted-foreground">Total</th>
+                        <th className="text-right px-5 py-3 font-medium text-[10px] uppercase text-amber-600/80">Cash</th>
+                        <th className="text-right px-5 py-3 font-medium text-[10px] uppercase text-blue-600/80">Online</th>
+                        <th className="text-right px-5 py-3 font-medium text-[10px] uppercase text-destructive/80">Remaining</th>
+                        <th className="text-center px-5 py-3 font-medium text-[10px] uppercase text-muted-foreground">Status</th>
+                      </tr></thead>
+                      <tbody>{list.map(inv => renderInvoiceRow(inv))}</tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+
+            return (
+              <div key={cat} className={cn('rounded-2xl border-2 p-5 space-y-5', cfg.border, cfg.bg)}>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{cfg.emoji}</span>
+                    <div>
+                      <h2 className={cn('text-lg font-bold', cfg.color)}>{cat}</h2>
+                      <p className="text-xs text-muted-foreground">{base.length} bill{base.length !== 1 ? 's' : ''} · {fmt(base.reduce((s, i) => s + i.totalAmount, 0))} total · {fmt(base.reduce((s, i) => s + (i.remainingAmount||0), 0))} pending</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-destructive/10 text-destructive border border-destructive/20">{pending.length} Pending</span>
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-success/10 text-success border border-success/20">{completed.length} Done</span>
+                  </div>
+                </div>
+                {base.length === 0 && <p className="text-center text-muted-foreground text-sm py-6">No bills in this category yet. Select <span className={cn('font-black', cfg.color)}>{cat}</span> when creating a bill.</p>}
+                {renderCatTable(pending, 'Pending Payments', true)}
+                {renderCatTable(completed, 'Completed Payments', false)}
+              </div>
+            );
+          })}
+
+        </div>
+      )}
+
         {/* Reminders Alert Box */}
-        {filter === 'all' && reminderInvoices.length > 0 && (
+        {filter !== 'category' && filter === 'all' && reminderInvoices.length > 0 && (
           <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/20 shadow-md shadow-emerald-100 dark:shadow-none space-y-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 bg-emerald-100 dark:bg-emerald-900/40 rounded-bl-full pointer-events-none" />
             <h2 className="text-xl font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2 relative z-10">
@@ -397,6 +501,13 @@ export default function SalesHistory() {
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
                       </svg> WhatsApp Reminder
                     </button>
+                    <button
+                      onClick={() => setReminderPreview(inv)}
+                      title="View Bill"
+                      className="p-1.5 px-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs rounded-lg transition-all flex items-center justify-center gap-1"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => updateInvoice({ ...inv, isDelivered: true })} title="Mark Given" className="p-1.5 px-3 bg-card border border-border text-foreground hover:bg-muted font-bold text-xs rounded-lg transition-all flex items-center justify-center">
                       <Package className="w-3.5 h-3.5" />
                     </button>
@@ -408,7 +519,7 @@ export default function SalesHistory() {
         )}
 
         {/* Pending Section */}
-        {(filter === 'all' || filter === 'pending' || filter === 'vip') && (publicInvoices.filter(i => i.paymentStatus === 'pending').length > 0) && (
+        {filter !== 'category' && (filter === 'all' || filter === 'pending' || filter === 'vip') && (publicInvoices.filter(i => i.paymentStatus === 'pending').length > 0) && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-destructive flex items-center gap-2 px-1">
               <div className="w-2 h-6 bg-destructive rounded-full" />
@@ -431,7 +542,7 @@ export default function SalesHistory() {
         )}
 
         {/* Completed Section */}
-        {(filter === 'all' || filter === 'completed' || filter === 'vip') && (publicInvoices.filter(i => i.paymentStatus === 'completed').length > 0) && (
+        {filter !== 'category' && (filter === 'all' || filter === 'completed' || filter === 'vip') && (publicInvoices.filter(i => i.paymentStatus === 'completed').length > 0) && (
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-success flex items-center gap-2 px-1">
               <div className="w-2 h-6 bg-success rounded-full" />
@@ -454,13 +565,13 @@ export default function SalesHistory() {
         )}
 
         {/* Empty State */}
-        {publicInvoices.length === 0 && (
+        {filter !== 'category' && publicInvoices.length === 0 && (
           <div className="bg-card rounded-xl border border-border/50 shadow-card p-12 text-center text-muted-foreground animate-fade-in">
             No invoices generated yet.
           </div>
         )}
 
-        {filter !== 'all' && (
+        {filter !== 'category' && filter !== 'all' && (
           filter === 'vip'
             ? publicInvoices.length === 0
             : publicInvoices.filter(i => i.paymentStatus === filter).length === 0
@@ -470,6 +581,11 @@ export default function SalesHistory() {
           </div>
         )}
       </div>
+
+      {/* Reminder Bill Preview Modal */}
+      {reminderPreview && (
+        <InvoicePreview invoice={reminderPreview} onClose={() => setReminderPreview(null)} />
+      )}
 
       {/* Bulk WhatsApp Reminder Modal */}
       {bulkReminderOpen && (

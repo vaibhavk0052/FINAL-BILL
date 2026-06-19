@@ -1,6 +1,7 @@
 import { type Quotation } from '@/firebase/firestore';
 import { useEffect, useState } from 'react';
-import { X, Printer, Zap, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Printer, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { storage } from '@/firebase/firebase';
@@ -44,6 +45,19 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
           const element = document.getElementById('quotation-print-area');
           if (!element) throw new Error('Quotation preview element not found in DOM.');
 
+          // Inject font style so html2canvas picks up Devanagari font
+          const fontStyle = document.createElement('style');
+          fontStyle.textContent = `@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@700;900&display=swap');`;
+          element.prepend(fontStyle);
+
+          // Wait for font to fully load before capturing
+          try {
+            await document.fonts.load("900 14px 'Noto Serif Devanagari'");
+            await document.fonts.ready;
+          } catch (e) {
+            console.warn('Font preload warning:', e);
+          }
+
           const filename = `Quotation_${quotation.quotationNumber.replace(/\s+/g, '_')}.pdf`;
           const storagePath = `quotations/${quotation.quotationNumber.replace(/\s+/g, '_')}.pdf`;
 
@@ -51,9 +65,10 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
             margin: 10,
             filename,
             image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, useCORS: true, logging: false },
+            html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
           }).from(element).outputPdf('blob');
+          fontStyle.remove();
 
           console.log('✅ Quotation PDF generated. Size:', blob.size, 'bytes');
 
@@ -75,7 +90,7 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
           // Webhook: quotation,customerName — no amount/date for this template
           const safeCustomerName = quotation.customerName.replace(/,/g, ' ');
           const webhookUrl =
-            `https://webhook.whatapi.in/webhook/6a2a857b6f1a8bf9dd711123` +
+            `https://webhook.whatapi.in/webhook/6a3266186f1a8bf9dd7641b2` +
             `?number=${finalPhone}` +
             `&message=quotation,${encodeURIComponent(safeCustomerName)}` +
             `&medialink=${encodeURIComponent(downloadUrl)}`;
@@ -140,18 +155,42 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
             </button>
           </div>
         </div>
+        {/* Quotation Body (Screen View for html2pdf) */}
+        <div id="quotation-print-area" className="pt-3 px-6 pb-6 space-y-4 no-print bg-white text-black">
+          {renderContent()}
+        </div>
+      </div>
 
-        {/* Quotation Body */}
-        <div id="quotation-print-area" className="p-6 space-y-6 print-only bg-white text-black">
-          {/* Company Header */}
+      {/* Print Portal (for native window.print()) */}
+      {createPortal(
+        <div className="print-only pt-3 px-6 pb-6 space-y-4 bg-white text-black">
+          {renderContent()}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+
+  function renderContent() {
+    return (
+      <>
+        {/* Company Header */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-card-foreground">PhotoBill Pro</h3>
-                <p className="text-xs text-muted-foreground">Professional Billing</p>
+            <div className="flex flex-col items-start" style={{ gap: '6px' }}>
+              {/* Logo + Studio Text Row */}
+              <div className="flex items-start" style={{ gap: '0px' }}>
+                <img
+                  src="/logo.png"
+                  alt="Sachin Ghongade Photo & Films"
+                  style={{
+                    height: '180px',
+                    width: 'auto',
+                    objectFit: 'contain',
+                    maxWidth: '500px',
+                    marginTop: '-10px',
+                    marginLeft: '-15px'
+                  }}
+                />
               </div>
             </div>
             <div className="text-right">
@@ -163,6 +202,16 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
                 PROPOSAL ESTIMATE
               </span>
             </div>
+          </div>
+
+          {/* Centered Address & Contact Details */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center', textAlign: 'center', marginTop: '6px', borderBottom: '1.5px solid #000000', paddingBottom: '10px' }}>
+            <p style={{ fontSize: '13px', color: '#000000', margin: 0, fontWeight: '700', width: '100%', textAlign: 'center' }}>
+              स्टेट बँक जवळ, SVC बँकेच्या खाली, विश्रामबाग गणपती मंदिराशेजारी, सांगली ४१६ ४१५
+            </p>
+            <p style={{ fontSize: '13px', color: '#000000', margin: 0, fontWeight: '600', width: '100%', textAlign: 'center' }}>
+              📞 <strong>Office:</strong> 9130053081 &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Mobile:</strong> 9422427981 &nbsp;&nbsp;|&nbsp;&nbsp; ⏰ <strong>वेळ:</strong> सकाळी 9.30 ते रात्री 8.30
+            </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 rounded-lg p-5">
@@ -264,7 +313,7 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
                 <p className="text-muted-foreground text-[8px] sm:text-[8.5px] italic">नैसर्गिक आपत्ती, आग, पूर, चोरी, उपकरण बिघाड, hard disk बिघाड, मेमरी कार्ड करप्शन, सॉफ्टवेअर समस्या, डेटा लॉस, वीजपुरवठा खंडित होणे किंवा स्टुडिओच्या नियंत्रणाबाहेरील कोणत्याही कारणामुळे होणाऱ्या नुकसान, विलंब किंवा हानीसाठी स्टुडिओ जबाबदार राहणार नाही. तयार झालेल्या फोटो, व्हिडिओ, अल्बम किंवा इतर साहित्याची सूचना दिल्यानंतर 30 दिवसांच्या आत ग्राहकांनी ते घेऊन जावे. त्यानंतर त्यांच्या साठवणुकीची किंवा सुरक्षिततेची जबाबदारी स्टुडिओची राहणार नाही.</p>
               </div>
             </div>
-            
+
             <div className="mt-3 text-center space-y-1 text-[8px] sm:text-[9px] text-muted-foreground border-t border-dashed border-border/50 pt-2 break-inside-avoid">
               <p className="font-medium text-foreground">By confirming the booking and making the advance payment, the client acknowledges and agrees to all the above Terms & Conditions.</p>
               <p className="italic">बुकिंग निश्चित करून आगाऊ रक्कम भरल्यास ग्राहक वरील सर्व अटी व शर्ती मान्य करतो.</p>
@@ -277,13 +326,12 @@ export default function QuotationPreview({ quotation, onClose, autoPrint = false
                 <p className="mt-4 border-t border-border w-24 pt-0.5">Acceptance Signature</p>
               </div>
               <div className="text-[9px] text-muted-foreground text-right">
-                <p className="font-bold text-foreground">For PhotoBill Pro</p>
+                <p className="font-bold text-foreground">Sachin Ghongade Photo &amp; Films</p>
                 <p className="mt-4 border-t border-border w-24 pt-0.5 inline-block">Authorized Representative</p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  );
+      </>
+    );
+  }
 }

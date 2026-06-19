@@ -1,6 +1,7 @@
 import { type Invoice } from '@/contexts/InvoiceContext';
 import { useEffect, useState } from 'react';
-import { X, Printer, Zap, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Printer, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { uploadPdfAndSendWebhook } from '@/utils/pdfUploader';
@@ -48,6 +49,7 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false, is
             customerName: invoice.customerName,
             invoiceNumber: invoice.invoiceNumber,
             totalAmount: invoice.totalAmount,
+            remainingAmount: invoice.remainingAmount || 0,
             invoiceDate,
           });
 
@@ -103,17 +105,42 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false, is
           </div>
         </div>
 
-        {/* Invoice Body */}
-        <div id="invoice-print-area" className="p-6 space-y-6 print-only bg-white text-black">
-          {/* Company Header */}
+        {/* Invoice Body (Screen View for html2pdf) */}
+        <div id="invoice-print-area" className="pt-3 px-6 pb-6 space-y-4 no-print bg-white text-black">
+          {renderContent()}
+        </div>
+      </div>
+      
+      {/* Print Portal (for native window.print()) */}
+      {createPortal(
+        <div className="print-only pt-3 px-6 pb-6 space-y-4 bg-white text-black">
+          {renderContent()}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+
+  function renderContent() {
+    return (
+      <>
+        {/* Company Header */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-1">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-bold text-card-foreground">PhotoBill Pro</h3>
-                <p className="text-xs text-muted-foreground">Professional Billing</p>
+            <div className="flex flex-col items-start" style={{ gap: '6px' }}>
+              {/* Logo + Studio Text Row */}
+              <div className="flex items-start" style={{ gap: '0px' }}>
+                <img
+                  src="/logo.png"
+                  alt="Sachin Ghongade Photo & Films"
+                  style={{ 
+                    height: '180px', 
+                    width: 'auto', 
+                    objectFit: 'contain', 
+                    maxWidth: '500px',
+                    marginTop: '-10px',
+                    marginLeft: '-15px'
+                  }}
+                />
               </div>
             </div>
             <div className="text-right">
@@ -137,6 +164,16 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false, is
             </div>
           </div>
 
+          {/* Centered Address & Contact Details */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', width: '100%', alignItems: 'center', textAlign: 'center', marginTop: '6px', borderBottom: '1.5px solid #000000', paddingBottom: '10px' }}>
+            <p style={{ fontSize: '13px', color: '#000000', margin: 0, fontWeight: '700', width: '100%', textAlign: 'center' }}>
+              स्टेट बँक जवळ, SVC बँकेच्या खाली, विश्रामबाग गणपती मंदिराशेजारी, सांगली ४१६ ४१५
+            </p>
+            <p style={{ fontSize: '13px', color: '#000000', margin: 0, fontWeight: '600', width: '100%', textAlign: 'center' }}>
+              📞 <strong>Office:</strong> 9130053081 &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Mobile:</strong> 9422427981 &nbsp;&nbsp;|&nbsp;&nbsp; ⏰ <strong>वेळ:</strong> सकाळी 9.30 ते रात्री 8.30
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/50 rounded-lg p-5">
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Bill To</p>
@@ -150,10 +187,20 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false, is
             </div>
           </div>
 
-          {invoice.description && (
-            <div className="px-1 border-l-2 border-primary/20 bg-primary/5 py-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Description</p>
-              <p className="text-sm text-card-foreground whitespace-pre-wrap">{invoice.description}</p>
+          {(invoice.description || invoice.category) && (
+            <div className="flex flex-col sm:flex-row gap-4">
+              {invoice.category && (
+                <div className="flex-1 px-4 border-l-4 border-primary/40 bg-primary/5 py-3 rounded-r-xl">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Bill Category</p>
+                  <p className="text-sm font-black text-card-foreground">{invoice.category}</p>
+                </div>
+              )}
+              {invoice.description && (
+                <div className="flex-[2] px-4 border-l-4 border-primary/40 bg-primary/5 py-3 rounded-r-xl">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Description</p>
+                  <p className="text-sm text-card-foreground whitespace-pre-wrap font-medium">{invoice.description}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -297,13 +344,12 @@ export default function InvoicePreview({ invoice, onClose, autoPrint = false, is
                 <p className="mt-4 border-t border-border w-24 pt-0.5">Authorized Signatory</p>
               </div>
               <div className="text-[9px] text-muted-foreground text-right">
-                <p className="font-bold text-foreground">For PhotoBill Pro</p>
+                <p className="font-bold text-foreground">Sachin Ghongade Photo &amp; Films</p>
                 <p className="mt-4 border-t border-border w-24 pt-0.5 inline-block">Authorized Signatory</p>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  );
+      </>
+    );
+  }
 }

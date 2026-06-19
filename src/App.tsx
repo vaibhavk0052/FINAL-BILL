@@ -7,6 +7,8 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { InvoiceProvider } from "@/contexts/InvoiceContext";
 import { QuotationProvider } from "./contexts/QuotationContext";
+import { useEffect } from "react";
+import { clearPurchaseAndDashboardData } from "@/firebase/firestore";
 import { PurchaseProvider } from "./contexts/PurchaseContext";
 import { ItemProvider } from "./contexts/ItemContext";
 import { CustomerProvider } from "./contexts/CustomerContext";
@@ -20,14 +22,16 @@ import AllBills from "./pages/AllBills";
 import CreateQuotation from "./pages/CreateQuotation";
 import QuotationList from "./pages/QuotationList";
 import DailyReport from "./pages/DailyReport";
-import PurchaseEntry from "./pages/PurchaseEntry";
 import ManageItems from "./pages/ManageItems";
 import CustomerList from "./pages/CustomerList";
 import AddExpenses from "./pages/AddExpenses";
 import AddEmployee from "./pages/AddEmployee";
 import BillTrash from "./pages/BillTrash";
+import CategoryView from "./pages/CategoryView";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
+import WorkDone from "./pages/WorkDone";
+
 
 const queryClient = new QueryClient();
 
@@ -56,6 +60,21 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const RootRoute = () => {
+  const { user } = useAuth();
+  if (user?.role === 'superadmin') {
+    return <Dashboard />;
+  }
+  return <Navigate to="/sales-history" replace />;
+};
+
+const Initializer = () => {
+  useEffect(() => {
+    clearPurchaseAndDashboardData();
+  }, []);
+  return null;
+};
+
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
     <QueryClientProvider client={queryClient}>
@@ -66,12 +85,13 @@ const App = () => (
             <ItemProvider>
               <CustomerProvider>
                 <TooltipProvider>
+                  <Initializer />
                   <Toaster />
                   <Sonner />
                   <BrowserRouter>
                     <Routes>
                       <Route path="/login" element={<Login />} />
-                      <Route path="/" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
+                      <Route path="/" element={<ProtectedLayout><RootRoute /></ProtectedLayout>} />
                       <Route path="/create-bill" element={<ProtectedLayout><CreateBill /></ProtectedLayout>} />
                       <Route path="/edit-bill/:id" element={<ProtectedLayout><CreateBill /></ProtectedLayout>} />
                       <Route path="/sales-history" element={<ProtectedLayout><SalesHistory /></ProtectedLayout>} />
@@ -80,13 +100,13 @@ const App = () => (
                       <Route path="/edit-quotation/:id" element={<ProtectedLayout><CreateQuotation /></ProtectedLayout>} />
                       <Route path="/quotations" element={<ProtectedLayout><QuotationList /></ProtectedLayout>} />
                       <Route path="/daily-report" element={<ProtectedLayout><DailyReport /></ProtectedLayout>} />
-                      <Route path="/purchase-entry" element={<ProtectedLayout><PurchaseEntry /></ProtectedLayout>} />
-                      <Route path="/purchase-history" element={<ProtectedLayout><PurchaseEntry /></ProtectedLayout>} />
                       <Route path="/items" element={<ProtectedLayout><ManageItems /></ProtectedLayout>} />
                       <Route path="/customers" element={<ProtectedLayout><CustomerList /></ProtectedLayout>} />
                       <Route path="/add-expenses" element={<ProtectedLayout><AddExpenses /></ProtectedLayout>} />
                       <Route path="/add-employee" element={<SuperAdminRoute><ProtectedLayout><AddEmployee /></ProtectedLayout></SuperAdminRoute>} />
+                      <Route path="/work-done" element={<SuperAdminRoute><ProtectedLayout><WorkDone /></ProtectedLayout></SuperAdminRoute>} />
                       <Route path="/bill-trash" element={<SuperAdminRoute><ProtectedLayout><BillTrash /></ProtectedLayout></SuperAdminRoute>} />
+                      <Route path="/category-view" element={<ProtectedLayout><CategoryView /></ProtectedLayout>} />
 
                       <Route path="/reports" element={<ProtectedLayout><PlaceholderPage title="Payment Reports" /></ProtectedLayout>} />
                       <Route path="/suppliers" element={<ProtectedLayout><PlaceholderPage title="Suppliers" /></ProtectedLayout>} />

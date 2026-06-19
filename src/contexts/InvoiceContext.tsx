@@ -24,6 +24,15 @@ export interface PaymentEntry {
   note?: string;
 }
 
+export type InvoiceCategory = 'ID Photos' | 'Studio Shoots' | 'Events' | 'Frames & Prints';
+
+export const INVOICE_CATEGORIES: InvoiceCategory[] = [
+  'ID Photos',
+  'Studio Shoots',
+  'Events',
+  'Frames & Prints',
+];
+
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -31,6 +40,7 @@ export interface Invoice {
   customerPhone?: string;
   customerEmail?: string;
   description?: string;
+  category?: InvoiceCategory;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -70,6 +80,7 @@ interface InvoiceContextType {
   permanentlyDeleteInvoice: (id: string) => void;
   togglePrivate: (id: string) => void;
   totalRevenue: number;
+  allInvoiceNumbers: string[];
 }
 
 const InvoiceContext = createContext<InvoiceContextType | null>(null);
@@ -150,6 +161,10 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     return [];
   });
 
+  const [allInvoiceNumbers, setAllInvoiceNumbers] = useState<string[]>(() => {
+    return allInvoices.map(i => i.invoiceNumber);
+  });
+
   useEffect(() => {
     localStorage.setItem('billing_invoices', JSON.stringify(allInvoices));
   }, [allInvoices]);
@@ -199,6 +214,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
           customerPhone: fb.customerPhone,
           customerEmail: fb.customerEmail,
           description: fb.description,
+          category: fb.category,
           items: fb.items,
           subtotal: fb.subtotal,
           discount: fb.discount,
@@ -227,6 +243,9 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
           deletedAt: fb.deletedAt
         } as Invoice;
       });
+
+      // Update the raw list of all invoice numbers regardless of visibility
+      setAllInvoiceNumbers(parsedInvoices.map(i => i.invoiceNumber));
 
       setAllInvoices((prev) => {
         // Remove any invoice from local state that is no longer in Firestore (deleted from database)
@@ -322,13 +341,32 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const togglePrivate = useCallback((id: string) => {
-    setAllInvoices(prev => prev.map(inv => inv.id === id ? { ...inv, isPrivate: !inv.isPrivate } : inv));
+    setAllInvoices(prev => {
+      const updated = prev.map(inv => inv.id === id ? { ...inv, isPrivate: !inv.isPrivate } : inv);
+      const inv = updated.find(i => i.id === id);
+      if (inv) {
+        addBillToFirestore(inv, inv.id).catch(err => console.error("Error syncing invoice visibility to Firestore:", err));
+      }
+      return updated;
+    });
   }, []);
 
   const totalRevenue = invoices.reduce((s, i) => s + i.totalAmount, 0);
 
   return (
-    <InvoiceContext.Provider value={{ invoices, deletedInvoices, addInvoice, updateInvoice, updateInvoiceStatus, deleteInvoice, restoreInvoice, permanentlyDeleteInvoice, togglePrivate, totalRevenue }}>
+    <InvoiceContext.Provider value={{
+        invoices,
+        deletedInvoices,
+        addInvoice,
+        updateInvoice,
+        updateInvoiceStatus,
+        deleteInvoice,
+        restoreInvoice,
+        permanentlyDeleteInvoice,
+        togglePrivate,
+        totalRevenue,
+        allInvoiceNumbers,
+      }}>
       {children}
     </InvoiceContext.Provider>
   );

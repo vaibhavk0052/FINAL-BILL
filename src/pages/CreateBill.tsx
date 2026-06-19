@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useInvoices, type InvoiceItem, type Invoice, type PaymentEntry } from '@/contexts/InvoiceContext';
+import { useInvoices, type InvoiceItem, type Invoice, type PaymentEntry, type InvoiceCategory, INVOICE_CATEGORIES } from '@/contexts/InvoiceContext';
 import { useItems } from '@/contexts/ItemContext';
 import { useQuotations } from '@/contexts/QuotationContext';
 import { Plus, Trash2, FileText, Globe, Lock, User, Phone, BadgeCheck } from 'lucide-react';
@@ -17,7 +17,7 @@ export default function CreateBill() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const fromQuotationId = searchParams.get('from_quotation');
-  const { addInvoice, updateInvoice, invoices } = useInvoices();
+  const { addInvoice, updateInvoice, invoices, allInvoiceNumbers } = useInvoices();
   const { quotations } = useQuotations();
   const { items: availableItems } = useItems();
   const { user } = useAuth();
@@ -66,6 +66,7 @@ export default function CreateBill() {
   const [gstEnabled, setGstEnabled] = useState(false);
   const [invoiceNumberInput, setInvoiceNumberInput] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState<InvoiceCategory | ''>('');
   const [cashAmount, setCashAmount] = useState(0);
   const [onlineAmount, setOnlineAmount] = useState(0);
   const [advanceAmount, setAdvanceAmount] = useState(0);
@@ -95,6 +96,7 @@ export default function CreateBill() {
 
       setGstEnabled(existingInvoice.gstEnabled);
       setDescription(existingInvoice.description || '');
+      setCategory((existingInvoice.category as InvoiceCategory) || '');
       setCashAmount(existingInvoice.cashAmount || 0);
       setOnlineAmount(existingInvoice.onlineAmount || 0);
       setAdvanceAmount(existingInvoice.advanceAmount || 0);
@@ -127,6 +129,7 @@ export default function CreateBill() {
         setItems(fromQtn.items);
         setGstEnabled(fromQtn.gstEnabled);
         setDescription(fromQtn.description || '');
+        setCategory('');
 
         const sub = fromQtn.subtotal || 0;
         const disc = fromQtn.discount || 0;
@@ -157,6 +160,7 @@ export default function CreateBill() {
         setDiscountValue(0);
         setGstEnabled(false);
         setDescription('');
+        setCategory('');
         setCashAmount(0);
         setOnlineAmount(0);
         setAdvanceAmount(0);
@@ -172,9 +176,9 @@ export default function CreateBill() {
       // e.g. "JUN 057" → 57, "MAY 012" → 12.
       // IMPORTANT: Skip any number > 999 (4+ digits) — these are bad/manual entries (e.g. "JUN 1003")
       // that do NOT represent the real sequence and should not affect the next bill number.
-      const numericInvoices = invoices
-        .map(inv => {
-          const parts = inv.invoiceNumber.trim().split(/\s+/);
+      const numericInvoices = allInvoiceNumbers
+        .map(invNumber => {
+          const parts = invNumber.trim().split(/\s+/);
           // Use only the last segment (the numeric part after the month prefix)
           const numPart = parts[parts.length - 1];
           const num = parseInt(numPart.replace(/\D/g, ''), 10);
@@ -253,6 +257,7 @@ export default function CreateBill() {
       customerPhone: customerPhone.trim(),
       customerEmail: customerEmail.trim(),
       description: description.trim(),
+      category: category || undefined,
       items,
       subtotal,
       discount,
@@ -289,6 +294,7 @@ export default function CreateBill() {
       setDiscountValue(0);
       setGstEnabled(false);
       setDescription('');
+      setCategory('');
       setCashAmount(0);
       setOnlineAmount(0);
       setAdvanceAmount(0);
@@ -491,6 +497,41 @@ export default function CreateBill() {
                 </div>
               </div>
 
+            </div>
+
+            {/* Category & Description Box */}
+            <div className="bg-card rounded-xl border border-border/50 shadow-card p-6 space-y-4">
+              <h2 className="font-semibold text-card-foreground flex items-center gap-2">
+                <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                Bill Details
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Bill Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value as InvoiceCategory)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer"
+                  >
+                    <option value="" disabled>Select category (optional)</option>
+                    {INVOICE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Add a note or description for this bill..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-input bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    rows={2}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Line Items */}

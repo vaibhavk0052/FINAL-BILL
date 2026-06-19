@@ -25,12 +25,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { invoices } = useInvoices();
 
-  const [localExpenses, setLocalExpenses] = useState<Expense[]>([]);
+  const [localExpenses, setLocalExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('billing_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Load real-time expenses from Firestore on component mount
   useEffect(() => {
     const unsubscribe = listenToExpenses((data) => {
       setLocalExpenses(data);
+      localStorage.setItem('billing_expenses', JSON.stringify(data));
     });
     return unsubscribe;
   }, []);

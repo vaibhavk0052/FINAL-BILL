@@ -225,6 +225,7 @@ export const addBillToFirestore = async (billData: any, customId?: string): Prom
     customerName: billData.customerName || '',
     customerPhone: billData.customerPhone || billData.customerEmail || '',
     invoiceNumber: billData.invoiceNumber || '',
+    category: billData.category || null,
     items: billData.items || [],
     subtotal: billData.subtotal || billData.amount || 0,
     discount: billData.discount || 0,
@@ -242,6 +243,7 @@ export const addBillToFirestore = async (billData: any, customId?: string): Prom
     createdBy: billData.createdBy || 'System',
     createdByRole: billData.createdByRole || 'Staff',
     createdByPhone: billData.createdByPhone || '',
+    description: billData.description || '',
     isPrivate: billData.isPrivate || false,
     isImp: billData.isImp || false,
     isWorkDone: billData.isWorkDone || false,
@@ -804,6 +806,54 @@ export const addQuotationToFirestore = async (qData: Quotation, customId?: strin
 
 export const deleteQuotationFromFirestore = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'quotations', id));
+};
+
+// ── ONE-TIME CLEANUP FOR PURCHASE DATA ──
+export const clearPurchaseAndDashboardData = async (): Promise<void> => {
+  try {
+    const isCleared = localStorage.getItem('purchase_dashboard_cleared_v1');
+    if (isCleared === 'true') return;
+
+    // 1. Fetch and delete all docs from 'purchaseEntry'
+    const purchaseEntryCol = collection(db, 'purchaseEntry');
+    const purchaseEntrySnap = await getDocs(purchaseEntryCol);
+    const batch1 = writeBatch(db);
+    purchaseEntrySnap.forEach((docSnap) => {
+      batch1.delete(docSnap.ref);
+    });
+    await batch1.commit();
+    console.log(`Deleted ${purchaseEntrySnap.size} documents from purchaseEntry`);
+
+    // 3. Fetch and delete all docs from 'purchaseHistory'
+    const purchaseHistoryCol = collection(db, 'purchaseHistory');
+    const purchaseHistorySnap = await getDocs(purchaseHistoryCol);
+    const batch2 = writeBatch(db);
+    purchaseHistorySnap.forEach((docSnap) => {
+      batch2.delete(docSnap.ref);
+    });
+    await batch2.commit();
+    console.log(`Deleted ${purchaseHistorySnap.size} documents from purchaseHistory`);
+
+    // 4. Fetch and delete all expenses starting with 'pur-' from 'expenses'
+    const expensesCol = collection(db, 'expenses');
+    const expensesSnap = await getDocs(expensesCol);
+    const batch3 = writeBatch(db);
+    let count = 0;
+    expensesSnap.forEach((docSnap) => {
+      if (docSnap.id.startsWith('pur-')) {
+        batch3.delete(docSnap.ref);
+        count++;
+      }
+    });
+    if (count > 0) {
+      await batch3.commit();
+    }
+    console.log(`Deleted ${count} purchase expense documents starting with 'pur-'`);
+
+    localStorage.setItem('purchase_dashboard_cleared_v1', 'true');
+  } catch (err) {
+    console.error("Error clearing purchase and dashboard data:", err);
+  }
 };
 
 export { isFirebaseConfigured, auth, db };

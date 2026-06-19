@@ -1,6 +1,6 @@
-import { useInvoices } from '@/contexts/InvoiceContext';
+import { useInvoices, INVOICE_CATEGORIES, type InvoiceCategory } from '@/contexts/InvoiceContext';
 import { cn } from '@/lib/utils';
-import { Trash2, Eye, Printer, Pencil, Lock, Unlock, Globe, ShieldAlert, KeyRound, X, FileSpreadsheet, Phone, BadgeCheck, User, CheckCircle, Search, Star } from 'lucide-react';
+import { Trash2, Eye, Printer, Pencil, Lock, Globe, ShieldAlert, KeyRound, X, Phone, BadgeCheck, User, CheckCircle, Search, Star, Tags, Package } from 'lucide-react';
 import { useState, Fragment, useEffect } from 'react';
 import { getEmployees, type Employee } from '@/firebase/firestore';
 import { useNavigate } from 'react-router-dom';
@@ -8,6 +8,13 @@ import InvoicePreview from '@/components/InvoicePreview';
 import type { Invoice } from '@/contexts/InvoiceContext';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+
+const CAT_CONFIG: Record<InvoiceCategory, { emoji: string; color: string; border: string; bg: string }> = {
+  'ID Photos':       { emoji: '🪪', color: 'text-blue-600',    border: 'border-blue-200 dark:border-blue-800/40',    bg: 'bg-blue-50 dark:bg-blue-950/20' },
+  'Studio Shoots':   { emoji: '📸', color: 'text-violet-600',  border: 'border-violet-200 dark:border-violet-800/40',  bg: 'bg-violet-50 dark:bg-violet-950/20' },
+  'Events':          { emoji: '🎉', color: 'text-emerald-600', border: 'border-emerald-200 dark:border-emerald-800/40', bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
+  'Frames & Prints': { emoji: '🖼️', color: 'text-amber-600',  border: 'border-amber-200 dark:border-amber-800/40',  bg: 'bg-amber-50 dark:bg-amber-950/20' },
+};
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0 });
 
@@ -21,7 +28,8 @@ export default function AllBills() {
   const [preview, setPreview] = useState<Invoice | null>(null);
   const [autoPrint, setAutoPrint] = useState(false);
   const [activeTab, setActiveTab] = useState<'public' | 'private'>('public');
-  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'vip'>('all');
+  const [filter, setFilter] = useState<'all' | 'completed' | 'pending' | 'vip' | 'category'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<InvoiceCategory | 'All'>('All');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [activeWorkDoneInvoiceId, setActiveWorkDoneInvoiceId] = useState<string | null>(null);
 
@@ -58,7 +66,8 @@ export default function AllBills() {
       if (!query) return true;
       return (
         i.customerName?.toLowerCase().includes(query) ||
-        i.invoiceNumber?.toLowerCase().includes(query)
+        i.invoiceNumber?.toLowerCase().includes(query) ||
+        i.customerPhone?.toLowerCase().includes(query)
       );
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -84,8 +93,13 @@ export default function AllBills() {
       if (pendingAction === 'view_private') {
         setActiveTab('private');
       } else if (pendingAction === 'toggle_private' && pendingInvoiceId) {
+        const inv = invoices.find(i => i.id === pendingInvoiceId);
         togglePrivate(pendingInvoiceId);
-        toast.success('Bill moved to Private');
+        if (inv?.isPrivate) {
+          toast.success('Bill moved to Public');
+        } else {
+          toast.success('Bill moved to Private');
+        }
       }
       setPasswordInput('');
       setPendingAction(null);
@@ -168,6 +182,9 @@ export default function AllBills() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
+              autoComplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder="Search customer or invoice..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -184,7 +201,7 @@ export default function AllBills() {
           </div>
 
           {/* Payment Filter */}
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-2xl border border-border/30 shrink-0">
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-2xl border border-border/30 shrink-0 flex-wrap">
             {(['all', 'completed', 'pending', 'vip'] as const).map(f => (
               <button
                 key={f}
@@ -197,6 +214,15 @@ export default function AllBills() {
                 {f}
               </button>
             ))}
+            <button
+              onClick={() => setFilter('category')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                filter === 'category' ? 'bg-card text-foreground shadow-sm border border-border/30' : 'text-muted-foreground'
+              )}
+            >
+              <Tags className="w-3 h-3" /> Category
+            </button>
           </div>
         </div>
       </div>
@@ -209,8 +235,190 @@ export default function AllBills() {
         </div>
       )}
 
-      {/* Bills Table */}
-      <div
+      {/* ── INLINE CATEGORY VIEW ── */}
+      {filter === 'category' && (
+        <div className="space-y-6 animate-fade-in pb-20">
+          <div className="flex items-center justify-between bg-card p-4 rounded-xl border border-border/50 shadow-sm">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Tags className="w-4 h-4" /> Category View
+            </h2>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as any)}
+              className="px-4 py-2 rounded-lg border border-input bg-background text-sm font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="All">All Categories</option>
+              {INVOICE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+          {(categoryFilter === 'All' ? INVOICE_CATEGORIES : [categoryFilter as InvoiceCategory]).map(cat => {
+            const cfg = CAT_CONFIG[cat];
+            const base = (activeTab === 'public' ? publicBills : privateBills)
+              .filter(i => i.category === cat)
+              .filter(i => {
+                const q = searchQuery.toLowerCase().trim();
+                return !q || i.customerName?.toLowerCase().includes(q) || i.invoiceNumber?.toLowerCase().includes(q);
+              })
+              .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const pending   = base.filter(i => i.paymentStatus === 'pending');
+            const completed = base.filter(i => i.paymentStatus === 'completed');
+            const paidAmount = (inv: Invoice) => inv.totalAmount - (inv.remainingAmount || 0);
+
+            const renderCatRow = (inv: Invoice) => (
+              <Fragment key={inv.id}>
+                <tr className="hover:bg-muted/20 transition-all group">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-2">
+                      {inv.isImp && <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 text-[8px] font-black uppercase border border-amber-500/20 shrink-0">IMP</span>}
+                      <span className="font-black text-foreground">{inv.invoiceNumber}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                    <div className="font-semibold text-slate-700 dark:text-slate-300">{new Date(inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                    <div className="text-[11px] opacity-75">{new Date(inv.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-foreground">{inv.customerName}</span>
+                      {inv.customerPhone && <span className="text-[10px] text-muted-foreground">{inv.customerPhone}</span>}
+                      {inv.isWorkDone && <span className="inline-flex items-center gap-1 text-[9px] font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 px-1.5 py-0.5 rounded w-fit"><CheckCircle className="w-2.5 h-2.5" /> Work Done by {inv.workDoneBy || 'Staff'}</span>}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-right font-black tabular-nums">{fmt(inv.totalAmount)}</td>
+                  <td className="px-5 py-4 text-right font-bold tabular-nums text-emerald-600">{fmt(paidAmount(inv))}</td>
+                  <td className="px-5 py-4 text-right font-bold tabular-nums text-rose-500">{fmt(inv.remainingAmount || 0)}</td>
+                  <td className="px-5 py-4 text-center">
+                    <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase', inv.paymentStatus === 'completed' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive')}>{inv.paymentStatus}</span>
+                  </td>
+                </tr>
+                <tr className="border-b border-border/30 last:border-0 bg-muted/5 hover:bg-muted/10 transition-colors">
+                  <td colSpan={7} className="px-5 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <button onClick={() => { const n = !inv.isImp; updateInvoice({ ...inv, isImp: n }); toast.success(n ? 'Marked VIP!' : 'Removed from VIP!'); }}
+                        className={cn('flex items-center gap-1.5 px-2 py-1 rounded-md border text-[9px] font-black uppercase tracking-wider transition-all', inv.isImp ? 'bg-amber-500/15 border-amber-500/40 text-amber-600' : 'bg-muted border-border text-muted-foreground hover:text-amber-600 hover:border-amber-500/20')}>
+                        <Star className={cn('w-3.5 h-3.5', inv.isImp ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground')} />{inv.isImp ? 'VIP' : 'Make VIP'}
+                      </button>
+                      {/* Work Done */}
+                      {inv.isWorkDone ? (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 border border-indigo-500/20">
+                          <CheckCircle className="w-3.5 h-3.5" /><span className="text-[10px] font-bold uppercase">Work Done ({inv.workDoneBy || 'Staff'})</span>
+                        </div>
+                      ) : activeWorkDoneInvoiceId === inv.id ? (
+                        <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 p-1 px-2 rounded-xl">
+                          <select defaultValue="" onChange={e => { const n = e.target.value; if (n) { updateInvoice({ ...inv, isWorkDone: true, workDoneBy: n, workDoneAt: new Date().toISOString() }); toast.success(`Work done by ${n}!`); setActiveWorkDoneInvoiceId(null); } }} className="px-2 py-0.5 text-xs font-black text-indigo-700 bg-transparent border-0 outline-none cursor-pointer">
+                            <option value="" disabled>Select Employee *</option>
+                            {actualEmployees.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+                          </select>
+                          <button onClick={() => setActiveWorkDoneInvoiceId(null)} className="p-0.5 text-indigo-500 hover:bg-indigo-100 rounded"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setActiveWorkDoneInvoiceId(inv.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 font-bold border border-indigo-500/20 transition-all">
+                          <CheckCircle className="w-3.5 h-3.5" /><span>Work Done</span>
+                        </button>
+                      )}
+                      {/* Mark Given */}
+                      {inv.isDelivered ? (
+                        <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                          <CheckCircle className="w-3.5 h-3.5" /><span className="text-[10px] font-bold uppercase">Given to Customer</span>
+                        </div>
+                      ) : (
+                        <button onClick={() => updateInvoice({ ...inv, isDelivered: true })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 font-bold border border-amber-500/20 transition-all">
+                          <Package className="w-3.5 h-3.5" /><span>Mark Given</span>
+                        </button>
+                      )}
+                      {/* WhatsApp */}
+                      <button onClick={() => {
+                        if (!inv.customerPhone) return;
+                        const txt = `SACHIN GHONGADE PHOTO & FILMS 
+
+Hello ${inv.customerName},
+
+This is a friendly reminder that your photos/videos are ready for delivery. 
+
+We have been waiting for your visit to complete the handover. Kindly collect your order at your earliest convenience.
+
+If there is any pending payment, please clear it before collection.
+
+For any assistance, feel free to contact us.
+
+Thank you for choosing us for your special moments. 
+
+ SACHIN GHONGADE PHOTO & FILMS
+9130053081 / 9422427981
+
+ Enriching Your Moments Through Creative Photography And Cinematic Storytelling.`;
+                        const ph = inv.customerPhone.replace(/\D/g,''); window.open(`https://wa.me/${ph.length===10?'91'+ph:ph}?text=${encodeURIComponent(txt)}`, '_blank');
+                      }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25d366] font-bold border border-[#25d366]/30 transition-all">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" /></svg>
+                        <span>WhatsApp Reminder</span>
+                      </button>
+                      <div className="w-px h-5 bg-border mx-1" />
+                      <button onClick={() => { setAutoPrint(false); setPreview(inv); }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 font-bold border border-blue-500/20 transition-all">
+                        <Eye className="w-3.5 h-3.5" /><span>View Details</span>
+                      </button>
+                      <button onClick={() => navigate(`/edit-bill/${inv.id}`)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 font-bold border border-emerald-500/20 transition-all">
+                        <Pencil className="w-3.5 h-3.5" /><span>Edit Bill</span>
+                      </button>
+                      <button onClick={() => handleDelete(inv.id, inv.invoiceNumber)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 font-bold border border-rose-500/20 transition-all">
+                        <Trash2 className="w-3.5 h-3.5" /><span>Delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </Fragment>
+            );
+
+            const renderCatTable = (list: Invoice[], label: string, labelColor: string) => list.length > 0 && (
+              <div className="space-y-2">
+                <h3 className={cn('text-sm font-black uppercase tracking-wider flex items-center gap-2', labelColor)}>
+                  <div className={cn('w-1.5 h-5 rounded-full', labelColor.includes('destructive') ? 'bg-destructive' : 'bg-success')} /> {label} ({list.length})
+                </h3>
+                <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-border/50 bg-muted/20">
+                        <th className="text-left px-5 py-3 font-black text-[10px] uppercase text-muted-foreground">Invoice #</th>
+                        <th className="text-left px-5 py-3 font-black text-[10px] uppercase text-muted-foreground">Date</th>
+                        <th className="text-left px-5 py-3 font-black text-[10px] uppercase text-muted-foreground">Customer</th>
+                        <th className="text-right px-5 py-3 font-black text-[10px] uppercase text-muted-foreground">Total</th>
+                        <th className="text-right px-5 py-3 font-black text-[10px] uppercase text-emerald-600">Paid</th>
+                        <th className="text-right px-5 py-3 font-black text-[10px] uppercase text-rose-500">Remaining</th>
+                        <th className="text-center px-5 py-3 font-black text-[10px] uppercase text-muted-foreground">Status</th>
+                      </tr></thead>
+                      <tbody>{list.map(renderCatRow)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+
+            return (
+              <div key={cat} className={cn('rounded-2xl border-2 p-5 space-y-5', cfg.border, cfg.bg)}>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{cfg.emoji}</span>
+                    <div>
+                      <h2 className={cn('text-lg font-bold', cfg.color)}>{cat}</h2>
+                      <p className="text-xs text-muted-foreground">{base.length} bill{base.length !== 1 ? 's' : ''} · {fmt(base.reduce((s, i) => s + i.totalAmount, 0))} total</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-destructive/10 text-destructive border border-destructive/20">{pending.length} Pending</span>
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-success/10 text-success border border-success/20">{completed.length} Done</span>
+                  </div>
+                </div>
+                {base.length === 0 && <p className="text-center text-muted-foreground text-sm py-6">No bills in this category yet.</p>}
+                {renderCatTable(pending, 'Pending Payments', 'text-destructive')}
+                {renderCatTable(completed, 'Completed Payments', 'text-success')}
+              </div>
+            );
+          })}
+
+        </div>
+      )}
+
+      {/* ── NORMAL TABLE VIEW ── */}
+      {filter !== 'category' && <div
         className={cn(
           'rounded-3xl border overflow-hidden shadow-xl animate-fade-up transition-all',
           activeTab === 'private'
@@ -451,15 +659,9 @@ export default function AllBills() {
                                   className="px-2 py-0.5 text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 bg-transparent border-0 outline-none cursor-pointer"
                                 >
                                   <option value="" disabled className="text-slate-400 italic">Select Employee *</option>
-                                  {user?.name && (
-                                    <option value={user.name} className="text-slate-800 font-semibold">{user.name} (You)</option>
-                                  )}
-                                  {actualEmployees
-                                    .filter(emp => emp.name !== user?.name)
-                                    .map(emp => (
-                                      <option key={emp.id} value={emp.name} className="text-slate-800 font-semibold">{emp.name}</option>
-                                    ))
-                                  }
+                                  {actualEmployees.map(emp => (
+                                    <option key={emp.id} value={emp.name} className="text-slate-800 font-semibold">{emp.name}</option>
+                                  ))}
                                 </select>
                                 <button
                                   onClick={() => setActiveWorkDoneInvoiceId(null)}
@@ -506,7 +708,7 @@ export default function AllBills() {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
 
       {/* Password Modal */}
       {showPasswordModal && (
@@ -525,6 +727,8 @@ export default function AllBills() {
             <div className="space-y-4">
               <input
                 type="password"
+                autoComplete="new-password"
+                data-lpignore="true"
                 value={passwordInput}
                 onChange={e => { setPasswordInput(e.target.value); setPasswordError(''); }}
                 onKeyDown={e => e.key === 'Enter' && handlePasswordSubmit()}

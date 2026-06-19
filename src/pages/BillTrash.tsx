@@ -16,10 +16,16 @@ export default function BillTrash() {
 
   const [showBulkMenu, setShowBulkMenu] = useState(false);
 
-  const filteredBills = deletedInvoices.filter(i => 
-    i.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    i.customerName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredBills = deletedInvoices
+    .filter(i => 
+      i.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      i.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const timeA = a.deletedAt ? new Date(a.deletedAt).getTime() : 0;
+      const timeB = b.deletedAt ? new Date(b.deletedAt).getTime() : 0;
+      return timeB - timeA;
+    });
 
   const handleRestore = (id: string, number: string) => {
     restoreInvoice(id);

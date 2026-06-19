@@ -9,6 +9,7 @@ interface UploadPdfAndSendParams {
   customerName: string;
   invoiceNumber: string;
   totalAmount: string | number;
+  remainingAmount: string | number;
   invoiceDate: string;
 }
 
@@ -20,6 +21,7 @@ export async function uploadPdfAndSendWebhook({
   customerName,
   invoiceNumber,
   totalAmount,
+  remainingAmount,
   invoiceDate,
 }: UploadPdfAndSendParams): Promise<{ downloadUrl: string }> {
 
@@ -37,6 +39,7 @@ export async function uploadPdfAndSendWebhook({
   console.log('Customer Name:', customerName);
   console.log('Customer Phone (raw):', customerPhone);
   console.log('Total Amount:', totalAmount);
+  console.log('Remaining Amount:', remainingAmount);
   console.log('Invoice Date:', invoiceDate);
 
   // ── Step 1 — Generate PDF blob ───────────────────────────────────────────────
@@ -50,19 +53,37 @@ export async function uploadPdfAndSendWebhook({
     throw new Error(`Invoice preview element "${elementId}" not found in the DOM.`);
   }
 
+  // ── Inject font style into element so html2canvas picks it up ───────────────
+  const fontStyle = document.createElement('style');
+  fontStyle.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@700;900&display=swap');
+  `;
+  element.prepend(fontStyle);
+
+  // ── Wait for Devanagari font to fully load ───────────────────────────────────
+  try {
+    await document.fonts.load("900 14px 'Noto Serif Devanagari'");
+    await document.fonts.ready;
+  } catch (e) {
+    console.warn('Font preload warning:', e);
+  }
+
   const opt = {
     margin: 10,
     filename,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
   };
 
   let blob: Blob;
   try {
     blob = await html2pdf().set(opt).from(element).outputPdf('blob');
+    // Clean up injected style
+    fontStyle.remove();
     console.log('✅ PDF generated successfully. Size:', blob.size, 'bytes');
   } catch (err: any) {
+    fontStyle.remove();
     console.error('❌ PDF generation failed:', err);
     console.groupEnd();
     throw new Error(`PDF generation failed: ${err?.message || err}`);
@@ -101,15 +122,16 @@ export async function uploadPdfAndSendWebhook({
   // ── Step 5 — Build webhook URL ───────────────────────────────────────────────
   // Each dynamic variable is individually encoded; the complete Firebase URL
   // is encoded once via encodeURIComponent — no double-encoding.
-  const webhookBase = 'https://webhook.whatapi.in/webhook/6a2a951a6f1a8bf9dd713259';
+  const webhookBase = 'https://webhook.whatapi.in/webhook/6a3373cb6f1a8bf9dd76f302';
 
   const safeCustomerName  = String(customerName).replace(/,/g, ' ');
   const safeInvoiceNumber = String(invoiceNumber);
   const safeTotalAmount   = String(totalAmount);
+  const safeRemainingAmount = String(remainingAmount);
   const safeInvoiceDate   = String(invoiceDate);
 
   const messageParam =
-    `invoicebill,${encodeURIComponent(safeCustomerName)},${encodeURIComponent(safeInvoiceNumber)},${encodeURIComponent(safeTotalAmount)},${encodeURIComponent(safeInvoiceDate)}`;
+    `invoicebill,${encodeURIComponent(safeCustomerName)},${encodeURIComponent(safeInvoiceNumber)},${encodeURIComponent(safeTotalAmount)},${encodeURIComponent(safeRemainingAmount)},${encodeURIComponent(safeInvoiceDate)}`;
 
   const webhookUrl =
     `${webhookBase}` +

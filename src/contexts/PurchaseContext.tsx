@@ -39,7 +39,8 @@ export function PurchaseProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
     const unsubscribe = listenToPurchases((data) => {
-      setPurchases(data);
+      const sorted = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setPurchases(sorted);
     });
     return unsubscribe;
   }, [user]);

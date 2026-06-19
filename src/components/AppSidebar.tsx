@@ -4,7 +4,7 @@ import {
   LayoutDashboard, History, FilePlus, FileText, CreditCard, Clock,
   BarChart3, ShoppingCart, ClipboardList, Users2, Package, Tags,
   IndianRupee, UserPlus, Settings, UserCircle, LogOut, Zap, ChevronDown, Trash2, X, FileSpreadsheet,
-  Sun, Moon
+  Sun, Moon, CheckCircle
 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
@@ -97,13 +97,7 @@ const menu: { section: string; items: (MenuItem & { role?: string })[] }[] = [
   {
     section: 'Main',
     items: [
-      { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    ],
-  },
-  {
-    section: 'Purchases',
-    items: [
-      { label: 'Purchase Entry', icon: ShoppingCart, path: '/purchase-entry' },
+      { label: 'Dashboard', icon: LayoutDashboard, path: '/', role: 'superadmin' },
     ],
   },
   {
@@ -144,6 +138,7 @@ const menu: { section: string; items: (MenuItem & { role?: string })[] }[] = [
     section: 'System',
     items: [
       { label: 'Add Employee', icon: UserPlus, path: '/add-employee', role: 'superadmin' },
+      { label: 'Work Done', icon: CheckCircle, path: '/work-done', role: 'superadmin' },
     ],
   },
 ];

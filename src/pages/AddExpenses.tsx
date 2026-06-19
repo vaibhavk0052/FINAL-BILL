@@ -14,7 +14,10 @@ interface Expense {
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 export default function AddExpenses() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('billing_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
@@ -24,6 +27,7 @@ export default function AddExpenses() {
   useEffect(() => {
     const unsubscribe = listenToExpenses((data) => {
       setExpenses(data);
+      localStorage.setItem('billing_expenses', JSON.stringify(data));
     });
     return unsubscribe;
   }, []);

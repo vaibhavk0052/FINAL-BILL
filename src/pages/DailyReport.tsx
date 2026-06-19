@@ -1,6 +1,7 @@
 import { useInvoices } from '@/contexts/InvoiceContext';
 import { usePurchases } from '@/contexts/PurchaseContext';
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { listenToExpenses, addExpenseRecordToFirestore } from '@/firebase/firestore';
 import { IndianRupee, TrendingUp, TrendingDown, Wallet, Calendar, Plus, X, FileSpreadsheet, Lock, Globe, ShieldAlert, KeyRound, Printer } from 'lucide-react';
@@ -15,11 +16,15 @@ export default function DailyReport() {
   const { purchases, addPurchase } = usePurchases();
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'superadmin';
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>(() => {
+    const saved = localStorage.getItem('billing_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     const unsubscribe = listenToExpenses((data) => {
       setExpenses(data);
+      localStorage.setItem('billing_expenses', JSON.stringify(data));
     });
     return unsubscribe;
   }, []);
@@ -745,7 +750,8 @@ export default function DailyReport() {
       )}
 
       {/* PRINT ONLY SECTION */}
-      <div className="hidden print:block print-only w-full max-w-[800px] mx-auto p-8 bg-white text-black font-sans text-xs">
+      {createPortal(
+        <div className="hidden print:block print-only w-full max-w-[800px] mx-auto p-8 bg-white text-black font-sans text-xs">
         {/* Header */}
         <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
           <div>
@@ -878,7 +884,9 @@ export default function DailyReport() {
             <p className="font-bold text-[10px] text-black uppercase tracking-wider">Authorized Signatory</p>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
+    )}
     </div>
   );
 }

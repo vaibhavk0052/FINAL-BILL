@@ -255,7 +255,6 @@ export default function CreateQuotation() {
                   <thead>
                     <tr className="border-b border-border/50 bg-muted/20">
                       <th className="text-left py-3 px-3 font-semibold text-muted-foreground">Service Name</th>
-                      <th className="text-center py-3 px-3 font-semibold text-muted-foreground w-24">Quantity</th>
                       <th className="text-right py-3 px-3 font-semibold text-muted-foreground w-32">Rate (₹)</th>
                       <th className="text-right py-3 px-3 font-semibold text-muted-foreground w-36">Total (₹)</th>
                       <th className="py-3 px-2 w-10"></th>
@@ -276,17 +275,17 @@ export default function CreateQuotation() {
                               </select>
                               <input type="text" value={item.name} onChange={e => updateItem(idx, 'name', e.target.value)} className="px-2 py-1.5 border border-input rounded text-xs font-semibold flex-1" placeholder="Enter service description" />
                             </div>
-                            <input
-                              type="text"
+                            <textarea
                               value={item.description || ''}
                               onChange={e => updateItem(idx, 'description', e.target.value)}
                               placeholder="Service details / description (optional)"
-                              className="w-full px-2 py-1 border border-input rounded text-[10px] text-muted-foreground bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60 font-medium"
+                              rows={1}
+                              className="w-full px-2 py-1 border border-input rounded text-[10px] text-muted-foreground bg-background/50 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60 font-medium resize-none overflow-hidden transition-all duration-200"
+                              style={{ minHeight: '28px' }}
+                              onFocus={e => { e.target.rows = 4; }}
+                              onBlur={e => { if (!e.target.value) e.target.rows = 1; else e.target.rows = 2; }}
                             />
                           </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <input type="number" min={1} value={item.quantity || ''} onChange={e => updateItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1.5 border border-input rounded text-center text-xs font-bold" />
                         </td>
                         <td className="py-3 px-3">
                           <input type="number" min={0} value={item.price || ''} onChange={e => updateItem(idx, 'price', Number(e.target.value))} className="w-full px-2 py-1.5 border border-input rounded text-right text-xs font-bold" />

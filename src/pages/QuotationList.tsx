@@ -22,7 +22,8 @@ export default function QuotationList() {
       if (!query) return true;
       return (
         q.customerName?.toLowerCase().includes(query) ||
-        q.quotationNumber?.toLowerCase().includes(query)
+        q.quotationNumber?.toLowerCase().includes(query) ||
+        q.customerPhone?.toLowerCase().includes(query)
       );
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -49,7 +50,37 @@ export default function QuotationList() {
   };
 
   const sendWhatsApp = (q: Quotation) => {
-    const text = `*SACHIN GHONGADE PHOTO & FILMS*\n\nHello ${q.customerName},\n\nWe hope you are doing well.\n\nThis is a friendly follow-up regarding the quotation we shared with you earlier. We would be happy to know your thoughts and assist you with any questions or customization requirements.\n\nIf you would like to proceed with the booking, kindly let us know so that we can reserve your date and make the necessary arrangements.\n\nWe look forward to being a part of your special moments.\n\n*SACHIN GHONGADE PHOTO & FILMS*\n9422427981 / 9130053081\n\nInstagram (Weddings):\nhttps://www.instagram.com/sachin_ghongade_sg\n\nInstagram (Studio):\nhttps://www.instagram.com/kids_photography_by_sg\n\nFacebook:\nhttps://www.facebook.com/share/1EAF4dykDT/\n\nStudio Location:\nhttps://maps.app.goo.gl/sbvtioZwMiE5G7Pz5\n\nEnriching Your Moments Through Creative Photography And Cinematic Storytelling.`;
+    const text = ` SACHIN GHONGADE PHOTO & FILMS
+
+Hello ${q.customerName},
+
+We hope you are doing well. 
+
+This is a friendly follow-up regarding the quotation we shared with you earlier. We would be happy to know your thoughts and assist you with any questions or customization requirements.
+
+If you would like to proceed with the booking, kindly let us know so that we can reserve your date and make the necessary arrangements.
+
+We look forward to being a part of your special moments. 
+
+ SACHIN GHONGADE PHOTO & FILMS
+ 9422427981 / 9130053081
+
+ Instagram (Weddings):
+https://www.instagram.com/sachin_ghongade_sg
+
+ Instagram (Studio):
+https://www.instagram.com/kids_photography_by_sg
+
+YouTube:
+https://youtube.com/@sachin_ghongade_photo_films?si=csa1LU48owFu-6V-
+
+Facebook:
+https://www.facebook.com/share/1EAF4dykDT/
+
+ Studio Location:
+https://maps.app.goo.gl/sbvtioZwMiE5G7Pz5
+
+ Enriching Your Moments Through Creative Photography And Cinematic Storytelling.`;
     const phone = q.customerPhone ? q.customerPhone.replace(/\D/g, '') : '';
     const finalPhone = phone.length === 10 ? '91' + phone : phone;
     window.open(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`, '_blank');
